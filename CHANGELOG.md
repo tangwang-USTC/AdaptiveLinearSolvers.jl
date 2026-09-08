@@ -15,6 +15,7 @@
 - 接入 `Krylov.jl` 作为无预条件器 CG、MINRES、GMRES、FGMRES 与 BiCGStab 的执行后端，并返回统一的迭代报告和预算终止状态。
 - 增加可应用预条件器算子接口，将固定预条件器映射到 Krylov 左预条件器 `M`，将可变预条件器映射到 FGMRES 右预条件器 `N`。
 - 增加 `MatrixFreeOperator`，使未显式组装矩阵的线性作用可自动分流到 Krylov 路线。
+- 在理论文档中补充矩阵自由算子的定义、Vlasov-Fokker-Planck/Maxwell 例子与路线边界，并由设计文档链接引用。
 
 ## [0.0.1] - 2026-09-08
 

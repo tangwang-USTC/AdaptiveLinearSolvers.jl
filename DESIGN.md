@@ -208,9 +208,9 @@ inspect(problem)
 
 ## 15. 未发布矩阵自由算子批次
 
-`MatrixFreeOperator(rows, cols, apply!)` 只要求调用方实现原位线性作用 $y=Ax$，并提供 `size`、`mul!` 与向量乘法语义，因此无需显式组装稠密或稀疏矩阵即可交给 Krylov 后端。该表示可作为 Vlasov-Fokker-Planck 与 Maxwell 离散中大规模内层线性系统的基础接口。
+`MatrixFreeOperator(rows, cols, apply!)` 只要求调用方实现原位线性作用 $y=Ax$，并提供 `size`、`mul!` 与向量乘法语义，因此无需显式组装稠密或稀疏矩阵即可交给 Krylov 后端。矩阵自由的数学定义、显式稀疏矩阵的区别、Vlasov-Fokker-Planck/Maxwell 例子、残差语义和伴随作用限制见[理论文档 3.1 节](THEORY.md#matrix-free-operators)。
 
-矩阵自由表示不满足 LU、Cholesky、QR 或 SVD 的当前直接后端资格；计划器对这些路线给出 `:matrix_free_direct_route_unavailable`。若调用方未锁定直接路线，且没有其他直接路线合格，规划器将自动生成满足数学资格的迭代候选。此批次尚未定义伴随作用 $A^\dagger x$、块算子、GPU、MPI 或分布式向量接口。
+路由器对矩阵自由表示的 LU、Cholesky、QR 和 SVD 返回 `:matrix_free_direct_route_unavailable`；若调用方未锁定直接路线，且没有其他直接路线合格，规划器自动生成满足数学资格的迭代候选。当前接口尚未定义伴随作用 $A^\dagger x$、块算子、GPU、MPI 或分布式向量。
 
 预条件器只有在同一次 `solve(A, b)` 内保持固定线性算子时，才可选择 GMRES；若其在迭代中变化、是非线性的，或该性质未知，规划器必须选择 FGMRES。能力模型通过 `fixed_within_solve` 与 `linear_within_solve` 表达该条件；数学理由、适用边界和例外见[理论基础的固定与可变预条件器章节](THEORY.md#fixed-and-variable-preconditioners)。
 

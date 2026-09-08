@@ -64,8 +64,62 @@ Julia 标准库提供 LU、Cholesky、Bunch-Kaufman、QR、SVD、稀疏分解与
 | 近秩亏 | 秩揭示证据 | 枢轴 QR | 截断 SVD |
 | 矩阵自由 | `mul!` 可用 | Krylov | 依据伴随是否可用选择最小二乘路线 |
 
+<a id="matrix-free-operators"></a>
+### 3.1 矩阵自由算子
+
+设 $X$ 和 $Y$ 为有限维向量空间，线性映射为
+
+$$
+\mathcal{A}: X \rightarrow Y, \qquad y = \mathcal{A}x.
+$$
+
+矩阵自由算子（matrix-free operator）指调用方能够计算向量作用 $y=\mathcal{A}x$，但不在内存中显式存储其相对于某组基的矩阵 $A$。这里“矩阵自由”不表示矩阵在数学上不存在；它表示路由器和求解器只能访问算子作用、维度及调用方提供的结构契约，而不能逐项读取 $A_{ij}$、进行稀疏模式分析或构造直接分解。Krylov 方法只反复需要该向量作用，因而适合此表示[[2](#ref-2)]。
+
+显式稀疏矩阵与矩阵自由算子不同：前者仍保存非零位置和数值，可使用稀疏 LU、fill-in 分析或 ILU（Incomplete LU，不完全 LU 分解）；后者通常以离散算子组合、局部核、快速变换或雅可比向量积实现，主要成本是一次 $x\mapsto\mathcal{A}x$ 的计算。
+
+当前接口要求原位作用：
+
+```julia
+A = MatrixFreeOperator(n, n, apply!)
+
+function apply!(y, x)
+    # overwrite y with A * x
+    return y
+end
+```
+
+`size(A)=(m,n)` 给出定义域和值域维度，`mul!(y, A, x)` 实现 $y\leftarrow\mathcal{A}x$。残差仍可按
+
+$$
+r=b-\mathcal{A}x
+$$
+
+计算，因此相对残差 $\lVert r\rVert/\lVert b\rVert$ 的定义不因不显式组装矩阵而改变；当 $b=0$ 时仍只使用绝对残差。
+
+**Vlasov-Fokker-Planck 例子。** 在给定时间步或 Newton 线性化点 $u_0$，离散残量 $F(u)$ 的雅可比作用可直接实现为
+
+$$
+\mathcal{A}v \approx \frac{F(u_0+\epsilon v)-F(u_0)}{\epsilon},
+$$
+
+或由流动、碰撞和场耦合离散块逐项作用得到。这样避免形成高维相空间中的完整雅可比矩阵；代价是每次 Krylov 迭代需要一次残量或分块算子求值。差分近似是否足够线性、$\epsilon$ 如何选择以及边界条件如何处理，必须由物理离散层记录为契约，不能由线性代数路由器猜测。
+
+**Maxwell 例子。** 对频域或隐式时间步的电场未知量，可将 curl-curl 型作用写为
+
+$$
+\mathcal{A}E = \nabla\times\left(\mu^{-1}\nabla\times E\right) + \sigma E,
+$$
+
+其中离散旋度、材料系数、导电项和边界条件在 `apply!` 内部依次应用。若该离散在指定内积下 Hermitian 或正定，调用方必须以证据形式明确提供；仅从连续方程形式或局部抽样不能授权 CG 或 MINRES。
+
+矩阵自由表示的路线边界如下：
+
+- LU、Cholesky、QR 和 SVD 需要显式元素或专门的隐式分解算法，当前直接后端不具备该资格。
+- CG、MINRES、GMRES、FGMRES 和 BiCGStab 只需正向作用，但各自仍受 Hermitian 性、正定性和预条件器语义资格门约束。
+- 最小二乘、条件数一范数估计和涉及 $A^\ast$ 的路线还需要伴随作用 $z\mapsto\mathcal{A}^\ast z$；当前 `MatrixFreeOperator` 未声明此能力，因此不得自动选择这些路线。
+
 <a id="scale-and-conditioning"></a>
-### 3.1 规模、资源与条件信息
+### 3.2 规模、资源与条件信息
 
 矩阵规模会改变路线的经济性，但不能单独决定路线。`small`、`medium` 和 `large` 应由 `RouteBudget` 的内存、时间、右端项数、稀疏模式和硬件能力共同定义，而不应在核心中写死单一维度阈值。
 

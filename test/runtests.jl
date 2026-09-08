@@ -1,4 +1,5 @@
 using Test
+using SparseArrays
 using AdaptiveLinearSolvers
 
 @testset "AdaptiveLinearSolvers v0.0.1" begin
@@ -14,9 +15,35 @@ using AdaptiveLinearSolvers
     @test result.status == Success
     @test result.residual_ratio < 1e-12
 
+    direct_plan = plan(AdaptiveLinearProblem(A, b; contract=contract),
+        RoutePolicy(family=Lock(:direct), direct=Lock(:cholesky)))
+    @test direct_plan.execution_routes == [:cholesky]
+    @test all(decision -> decision.accepted, direct_plan.layer_decisions[1:2])
+
+    unqualified_plan = plan(AdaptiveLinearProblem(A, b), RoutePolicy(direct=Lock(:cholesky)))
+    @test isempty(unqualified_plan.execution_routes)
+    @test only(unqualified_plan.eligibility).reason == :hermitian_evidence_insufficient
+
+    iterative_plan = plan(AdaptiveLinearProblem(A, b), RoutePolicy(iterative=Lock(:gmres)))
+    @test isempty(iterative_plan.execution_routes)
+    @test any(decision -> decision.layer == :iterative && !decision.accepted,
+        iterative_plan.layer_decisions)
+
     generic = solve(A, b)
     @test generic.route == :lu
     @test isapprox(A * generic.x, b; rtol=1e-12)
+
+    sparse_result = solve(sparse(A), b)
+    @test sparse_result.status == Success
+
+    zero_rhs = solve(A, zeros(2); residual_policy=ResidualPolicy(absolute_tolerance=1e-12))
+    @test zero_rhs.status == Success
+    @test zero_rhs.residual_ratio === nothing
+
+    rank_deficient = [1.0 0.0; 0.0 0.0]
+    rank_contract = MathematicalContract(rank_deficient=PropertyEvidence(Certified; source=:caller))
+    rank_plan = plan(AdaptiveLinearProblem(rank_deficient, [1.0, 0.0]; contract=rank_contract))
+    @test first(rank_plan.execution_routes) == :svd
 
     history = HistoryStore(1)
     telemetry = TelemetryPolicy(level=:fingerprint,

@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### Added
+
+- 增加无数值执行副作用的 `plan(problem, policy)` 规划层、路线能力和分层判定记录。
+- 将直接路线执行器改为只消费 `RoutePlan.execution_routes`，并扩展规划、稀疏、零右端项和秩亏测试。
+
 ## [0.0.1] - 2026-09-08
 
 ### Added

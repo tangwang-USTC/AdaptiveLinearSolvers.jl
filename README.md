@@ -56,6 +56,8 @@ benchmarks/          受版本控制的数学基准定义
 
 包入口为 `src/AdaptiveLinearSolvers.jl`。测试已写入 `test/runtests.jl`；本次仅建立代码，尚未执行测试。
 
+当前工作树正在 `0.0.1` 基线上开发未发布的规划批次：`plan(problem, policy)` 只生成路线计划，不执行数值内核。它将方法族、直接方法、迭代方法、预条件器和回退策略分层判定；当前仅直接方法层可执行。
+
 ## 本地使用与测试
 
 在包尚未注册至 Julia General registry 前，不能使用 `Pkg.add("AdaptiveLinearSolvers")`。Julia 包管理器 `Pkg` 应以本地项目方式加载：

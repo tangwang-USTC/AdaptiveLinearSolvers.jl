@@ -176,6 +176,12 @@ inspect(problem)
 
 实现支持 `off`、`basic` 与 `fingerprint` 遥测；`trace`、`diagnostic`、跨进程历史库和基于历史的重排序留待后续阶段。`HistoryStore` 仅在指纹模式且事件匹配时写入容量受限的内存记录。`0.0.1` 用 `SolveStatus` 区分成功、回退成功、资格拒绝、数值失败与预留的预算终止；`RouteCertificate` 仅在调用方显式请求时保存候选路线、资格证据、尝试历史、回退原因和残差验收信息。
 
+## 10. 未发布规划批次
+
+当前开发批次将规划与执行分离。`plan(problem, policy)` 返回 `RoutePlan`，其中包含候选路线、逐路线 `EligibilityDecision`、各策略层的 `LayerDecision` 和可执行路线顺序；该函数不得分解矩阵、申请求解工作区或计算残差。`solve` 只执行 `RoutePlan.execution_routes`，并将计划判定写入按需 `RouteCertificate`。
+
+在当前基线中，直接方法族及其 `direct` 层已可执行；`iterative`、`preconditioner` 与 `fallback` 层已进入独立判定模型，但尚无可执行能力。对这些层的 `Lock` 请求必须给出空计划和明确拒绝，对 `Prefer` 请求仅记录“当前不可用”并允许其他自动路线继续。只有该规划批次的测试、文档和验收条件整体完成后，才递增版本号。
+
 预条件器只有在同一次 `solve(A, b)` 内保持固定线性算子时，才可选择 GMRES；若其在迭代中变化、是非线性的，或该性质未知，规划器必须选择 FGMRES。能力模型通过 `fixed_within_solve` 与 `linear_within_solve` 表达该条件；数学理由、适用边界和例外见[理论基础的固定与可变预条件器章节](THEORY.md#fixed-and-variable-preconditioners)。
 
 ## 7. 缓存

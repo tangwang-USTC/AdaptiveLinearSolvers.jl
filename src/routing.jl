@@ -6,47 +6,6 @@ forwarded unchanged to the contract-aware `solve(problem; ...)` implementation b
 """
 solve(A, b; kwargs...) = solve(AdaptiveLinearProblem(A, b); kwargs...)
 
-_is_square(A) = size(A, 1) == size(A, 2)
-
-function _qualified(route::Symbol, problem::AdaptiveLinearProblem)
-    contract = problem.contract
-    if route == :cholesky
-        return _is_square(problem.A) && _certified_or_proved(contract.hermitian) &&
-               _certified_or_proved(contract.positive_definite)
-    elseif route in (:lu, :qr, :svd, :direct)
-        return true
-    end
-    return false
-end
-
-function _route_order(problem::AdaptiveLinearProblem, policy::RoutePolicy)
-    forbidden = _forbidden_routes(policy)
-    locked = _locked_route(policy)
-    if locked !== nothing
-        locked in _SUPPORTED_ROUTES || throw(ArgumentError("route $locked is not implemented in v0.0.1"))
-        locked in forbidden && throw(ArgumentError("route $locked is both locked and forbidden"))
-        _qualified(locked, problem) || throw(ArgumentError("locked route $locked is not mathematically qualified"))
-        return (candidate_routes=Symbol[locked], qualified_routes=Symbol[locked])
-    end
-
-    default = if _qualified(:cholesky, problem)
-        Symbol[:cholesky, :lu, :qr, :svd]
-    elseif _certified_or_proved(problem.contract.rank_deficient)
-        Symbol[:svd, :qr, :lu]
-    elseif _is_square(problem.A)
-        Symbol[:lu, :qr, :svd]
-    else
-        Symbol[:qr, :svd]
-    end
-    for route in _preferred_routes(policy)
-        route in _SUPPORTED_ROUTES || throw(ArgumentError("preferred route $route is not implemented in v0.0.1"))
-        _qualified(route, problem) && !(route in default) && pushfirst!(default, route)
-    end
-    candidates = unique(default)
-    return (candidate_routes=candidates,
-            qualified_routes=[route for route in candidates if !(route in forbidden)])
-end
-
 function _solve_route(route::Symbol, A, b)
     route == :direct && return A \ b
     route == :lu && return lu(A) \ b
@@ -72,13 +31,14 @@ function _validate_residual_policy(policy::ResidualPolicy)
 end
 
 function _certificate(problem::AdaptiveLinearProblem, telemetry::TelemetryPolicy,
-        candidates::Vector{Symbol}, qualified::Vector{Symbol}, attempted::Vector{Symbol},
+        route_plan::RoutePlan, attempted::Vector{Symbol},
         selected::Union{Nothing, Symbol}, fallback_reason::Union{Nothing, Symbol},
         residual_norm::Union{Nothing, Float64}, residual_ratio::Union{Nothing, Float64},
         accepted::Bool, notes::Vector{String})
     telemetry.level == :off && return nothing
     telemetry.output.certificate || return nothing
-    return RouteCertificate(problem.contract, copy(candidates), copy(qualified), copy(attempted),
+    return RouteCertificate(problem.contract, copy(route_plan.candidate_routes),
+        copy(route_plan.execution_routes), copy(route_plan.layer_decisions), copy(attempted),
         selected, fallback_reason, residual_norm, residual_ratio, accepted, copy(notes))
 end
 
@@ -110,26 +70,19 @@ function solve(problem::AdaptiveLinearProblem;
         history::Union{Nothing, HistoryStore}=nothing)
     _validate_telemetry(telemetry)
     _validate_residual_policy(residual_policy)
-    try
-        plan = _route_order(problem, policy)
-    catch error
-        notes = [sprint(showerror, error)]
-        certificate = _certificate(problem, telemetry, Symbol[], Symbol[], Symbol[], nothing,
-            :qualification_rejected, nothing, nothing, false, notes)
-        return AdaptiveLinearSolution(nothing, QualificationRejected, nothing, nothing,
-            certificate, nothing, nothing)
-    end
-    isempty(plan.qualified_routes) && begin
-        notes = ["no permitted and qualified route remains"]
-        certificate = _certificate(problem, telemetry, plan.candidate_routes, plan.qualified_routes,
-            Symbol[], nothing, :no_qualified_route, nothing, nothing, false, notes)
+    route_plan = plan(problem, policy)
+    isempty(route_plan.execution_routes) && begin
+        notes = ["no permitted, implemented, and mathematically qualified route remains"]
+        append!(notes, ["$(decision.layer): $(decision.reason)" for decision in route_plan.layer_decisions if !decision.accepted])
+        certificate = _certificate(problem, telemetry, route_plan, Symbol[], nothing,
+            :no_qualified_route, nothing, nothing, false, notes)
         return AdaptiveLinearSolution(nothing, QualificationRejected, nothing, nothing,
             certificate, nothing, nothing)
     end
 
     attempted = Symbol[]
     notes = String[]
-    for route in plan.qualified_routes
+    for route in route_plan.execution_routes
         push!(attempted, route)
         try
             x = _solve_route(route, problem.A, problem.b)
@@ -137,7 +90,7 @@ function solve(problem::AdaptiveLinearProblem;
             accepted || throw(ErrorException("residual acceptance failed"))
             status = length(attempted) == 1 ? Success : FallbackSuccess
             fallback_reason = status == FallbackSuccess ? :prior_route_failed : nothing
-            certificate = _certificate(problem, telemetry, plan.candidate_routes, plan.qualified_routes,
+            certificate = _certificate(problem, telemetry, route_plan,
                 attempted, route, fallback_reason, residual_norm, residual_ratio, true, notes)
             telemetry_data, record = _telemetry(problem, route, residual_ratio, telemetry, history, status)
             return AdaptiveLinearSolution(x, status, route, residual_ratio, certificate, telemetry_data, record)
@@ -145,7 +98,7 @@ function solve(problem::AdaptiveLinearProblem;
             push!(notes, "$route: $(sprint(showerror, error))")
         end
     end
-    certificate = _certificate(problem, telemetry, plan.candidate_routes, plan.qualified_routes,
+    certificate = _certificate(problem, telemetry, route_plan,
         attempted, nothing, :all_routes_failed, nothing, nothing, false, notes)
     return AdaptiveLinearSolution(nothing, NumericalFailure, nothing, nothing,
         certificate, nothing, nothing)

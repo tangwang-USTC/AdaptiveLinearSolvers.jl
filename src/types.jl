@@ -61,20 +61,6 @@ Base.@kwdef struct ResidualPolicy
     relative_tolerance::Float64 = sqrt(eps(Float64))
 end
 
-"""Opt-in, compact audit record of route qualification, attempts, and residual acceptance."""
-struct RouteCertificate
-    contract::MathematicalContract
-    candidate_routes::Vector{Symbol}
-    qualified_routes::Vector{Symbol}
-    attempted_routes::Vector{Symbol}
-    selected_route::Union{Nothing, Symbol}
-    fallback_reason::Union{Nothing, Symbol}
-    residual_norm::Union{Nothing, Float64}
-    residual_ratio::Union{Nothing, Float64}
-    residual_accepted::Bool
-    notes::Vector{String}
-end
-
 """Result of one solve, including only telemetry enabled by the selected policy."""
 struct AdaptiveLinearSolution{TX, TC, TT, TH}
     x::TX

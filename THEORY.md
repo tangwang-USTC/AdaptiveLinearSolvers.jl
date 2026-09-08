@@ -186,15 +186,19 @@ $$
 
 ```julia
 ConditioningInfo(
-    value = nothing,                  # 数值或定性等级
+    estimate = nothing,               # 条件数或倒数条件数的数值
     metric = :kappa_2,                # :kappa_1, :kappa_2, :kappa_inf, :rcond
     operator = :original,             # :original, :left_preconditioned, :right_preconditioned
-    evidence = :estimated,            # :exact, :estimated, :external, :qualitative
     matrix_version = nothing,
+    source = :caller_estimate,
+    reliable = true,
+    evidence = :external,             # :exact, :estimated, :external, :qualitative
 )
 ```
 
-例如，原始算子 $A$ 的条件数很大，而预条件算子 $A M^{-1}$ 的条件数可能适合 Krylov 迭代。路由性能判断应优先使用与候选路线一致的算子信息；过期的 `matrix_version`、不明范数或不明预条件形式的条件数只能作弱提示。已知条件数也不能绕过 Hermitian、正定、维度和伴随等算法资格。
+例如，原始算子 $A$ 的条件数很大，而预条件算子 $A M^{-1}$ 的条件数可能适合 Krylov 迭代。路由性能判断应优先使用与候选路线一致的算子信息。当前实现要求 `matrix_version` 与 `AdaptiveLinearProblem.matrix_version` 一致，并要求调用方标记 `reliable=true`；过期、未知范数、未知预条件形式或不可信的信息会被记录为 `:stale`、`:invalid` 或 `:untrusted`，不会改变路线排序。已知条件数也不能绕过 Hermitian、正定、维度和伴随等算法资格。
+
+`ConditioningPolicy()` 的默认 `estimation=:none`，因此只验证外部信息，不计算条件数。只有调用方显式设置 `estimation=:cheap` 或 `:full`，并同时给出正的 `DiagnosticBudget.max_seconds` 与 `max_matrix_dimension`，`diagnose` 才允许在小型显式稠密矩阵上估计条件信息。`cheap` 记录一范数倒数条件数，`full` 记录二范数条件数；矩阵自由、稀疏或超出维度预算的情况返回受限原因，而不是隐式稠密化。
 
 ### 3.2 条件数的计算与估计
 
@@ -216,6 +220,8 @@ $$
 - 小型问题先选有主元的直接法，验收后向误差并记录可取得的条件诊断；若秩亏、误差或主元增长可疑，回退到 QR 或 SVD。
 - 中型稀疏问题根据 fill-in 风险、右端项复用和内存预算选择直接法或预条件 Krylov；用短预算迭代的残差下降率决定是否重建预条件器或切换路线。
 - 大型或矩阵自由问题按严格结构资格选择 Krylov 法与预条件器，不先计算完整条件数；持续监控残差、停滞、breakdown、预条件器代价和内存。
+
+诊断输出必须分开保存条件、迭代和预条件器状态。`NumericalDiagnosis.conditioning.state` 可为 `:moderate`、`:ill_conditioned`、`:near_rank_deficient`、`:stale`、`:untrusted` 或 `:unknown`；`iteration_state` 可为 `:converged`、`:stagnated`、`:breakdown`、`:nonconverged` 或 `:not_observed`；`preconditioner_state` 只将停滞或 breakdown 标记为 `:suspected_failure`，不把相关性误写成因果结论。这样近秩亏、迭代停滞、预条件器可疑失效和实际未收敛具有独立可审计字段。
 
 这与 `LinearSolve.jl` 接受调用方提供算子条件假设的思想一致，但本项目保留数值、范数、作用算子和证据等级，避免把单一的“良态/病态”标签误用于不匹配的路线[[6](#ref-6)]。
 
@@ -308,6 +314,10 @@ $$
 - 环境信息：Julia 版本、包版本、设备类别和线程配置。
 
 历史学习只能在资格筛选之后排序已合法路线。它可以推荐“对同一 `family_key` 和相似指纹，某预条件器曾有效”，但不能因历史成功而允许未认证 SPD 系统使用 CG，或允许缺少伴随的算子使用最小二乘算法。初始实现采用有界的内存记录库与确定性排序；持久化存储、统计模型和受控探索属于后续扩展。
+
+当前实现将 `FingerprintProfile` 作为字段级开关：未启用的标签保持 `nothing`，不会参与相似记录检索。`HistoryStore` 仅在调用方传入实例且事件匹配时写入；`route_advice` 只对已通过资格门的自动候选路线提出重排建议。`save_history` 与 `load_history!` 必须由调用方显式调用，并且二进制历史只能从受信任本机路径读取。`trace` 与 `diagnostic` 只截取后端已有残差历史，受 `TelemetryBudget` 的样本上限约束；它们不会因遥测而额外计算真实残差、谱或条件数。完整接口见[可观测性与历史自适应](docs/OBSERVABILITY.md)。
+
+资源预算在数学资格筛选之后、数值内核执行之前生效。时间和迭代上限可收紧 Krylov 控制；内存预算只在当前后端能够给出保守下界时通过，未知 fill-in 或不支持的设备形态必须返回可解释的预算拒绝。后端登记应区分“已知名称”“已安装依赖”和“已验证适配器”：只有已验证适配器才可执行。当前实现只有串行 CPU 的标准库直接法与 `Krylov.jl` 后端；GPU、MPI、PETSc、LinearSolve.jl 和 IterativeSolvers.jl 均不得因名称匹配而被假定可用。完整能力表与适配器准入条件见[计算资源与后端](docs/BACKENDS.md)。
 
 ## 6. 生态定位
 

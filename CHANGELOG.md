@@ -4,6 +4,20 @@
 
 ## [Unreleased]
 
+## [0.0.4] - 2026-09-08
+
+### Added
+
+- 增加版本匹配的 `ConditioningInfo`、受预算的 `ConditioningPolicy` 与独立 `NumericalDiagnosis`，区分病态、近秩亏、停滞、breakdown、预条件器可疑失效和未收敛。
+- 增加字段可控的 `FingerprintProfile`、相似历史检索、路线成功率建议、预条件器复用提示以及显式受信任本机历史持久化。
+- 增加 `trace`、`diagnostic` 遥测级别和 `TelemetryBudget`，只采样后端已有残差历史。
+- 增加 `ResourceBudget`、`BackendPolicy` 与后端能力登记；标准库直接法和 `Krylov.jl` 在串行 CPU 上可执行，GPU、MPI 与外部适配器显式标记为未实现。
+- 将默认回归测试按功能拆分，并增加诊断、历史和资源预算测试。
+
+### Changed
+
+- 默认测试入口继续运行所有支持功能；当前发布批次通过 `85/85` 项测试。
+
 ## [0.0.3] - 2026-09-08
 
 ### Added

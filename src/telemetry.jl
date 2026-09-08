@@ -3,6 +3,7 @@ Base.@kwdef struct OutputRequest
     route::Bool = false
     residual_ratio::Bool = false
     conditioning::Bool = false
+    diagnostics::Bool = false
     certificate::Bool = false
 end
 
@@ -15,26 +16,35 @@ Base.@kwdef struct FingerprintProfile
     execution::Bool = true
 end
 
-"""Telemetry is off by default. Version 0.0.3 supports only `:off`, `:basic`, and `:fingerprint`."""
+"""Telemetry is off by default; expensive trace capture is bounded by `TelemetryBudget`."""
 Base.@kwdef struct TelemetryPolicy
     level::Symbol = :off
     output::OutputRequest = OutputRequest()
     fingerprint::FingerprintProfile = FingerprintProfile()
     emit_on::Tuple{Vararg{Symbol}} = ()
+    sample_every::Int = 1
+    budget::TelemetryBudget = TelemetryBudget()
 end
 
 function _validate_telemetry(policy::TelemetryPolicy)
-    policy.level in (:off, :basic, :fingerprint) ||
-        throw(ArgumentError("telemetry level $(policy.level) is planned after v0.0.3; use :off, :basic, or :fingerprint"))
+    policy.level in (:off, :basic, :fingerprint, :trace, :diagnostic) ||
+        throw(ArgumentError("telemetry level $(policy.level) must be :off, :basic, :fingerprint, :trace, or :diagnostic"))
+    policy.sample_every > 0 || throw(ArgumentError("telemetry sample_every must be positive"))
+    policy.budget.max_trace_samples >= 0 ||
+        throw(ArgumentError("telemetry max_trace_samples must be nonnegative"))
+    policy.budget.max_extra_operator_applications >= 0 ||
+        throw(ArgumentError("telemetry max_extra_operator_applications must be nonnegative"))
+    policy.budget.max_seconds >= 0 ||
+        throw(ArgumentError("telemetry max_seconds must be nonnegative"))
     return policy
 end
 
 Base.@kwdef struct MatrixFingerprint
-    representation::Symbol
-    size_band::Symbol
-    structure::Symbol
-    conditioning::Symbol
-    execution::Symbol = :serial_cpu
+    representation::Union{Nothing, Symbol} = nothing
+    size_band::Union{Nothing, Symbol} = nothing
+    structure::Union{Nothing, Symbol} = nothing
+    conditioning::Union{Nothing, Symbol} = nothing
+    execution::Union{Nothing, Symbol} = nothing
 end
 
 function _size_band(A)
@@ -55,22 +65,28 @@ function _structure_tag(contract::MathematicalContract)
     return :general
 end
 
-function _conditioning_tag(info::Union{Nothing, ConditioningInfo})
-    info === nothing && return :unknown
-    info.estimate === nothing && return :unknown
-    info.estimate < 1e6 && return :moderate
-    info.estimate < 1e12 && return :ill_conditioned
-    return :severely_ill_conditioned
+function _conditioning_tag(assessment::ConditioningAssessment)
+    return assessment.state
 end
 
-function _fingerprint(problem::AdaptiveLinearProblem)
+function _fingerprint(problem::AdaptiveLinearProblem,
+        assessment::ConditioningAssessment=assess_conditioning(problem),
+        profile::FingerprintProfile=FingerprintProfile())
     return MatrixFingerprint(
-        representation=problem.A isa AbstractLinearOperator ? :matrix_free :
-            (issparse(problem.A) ? :sparse_explicit : :dense_explicit),
-        size_band=_size_band(problem.A),
-        structure=_structure_tag(problem.contract),
-        conditioning=_conditioning_tag(problem.conditioning),
+        representation=profile.representation ? (problem.A isa AbstractLinearOperator ? :matrix_free :
+            (issparse(problem.A) ? :sparse_explicit : :dense_explicit)) : nothing,
+        size_band=profile.size_band ? _size_band(problem.A) : nothing,
+        structure=profile.structure ? _structure_tag(problem.contract) : nothing,
+        conditioning=profile.conditioning ? _conditioning_tag(assessment) : nothing,
+        execution=profile.execution ? :serial_cpu : nothing,
     )
+end
+
+"""Build a low-cost, profile-controlled fingerprint without numerical estimation."""
+function fingerprint(problem::AdaptiveLinearProblem;
+        profile::FingerprintProfile=FingerprintProfile(),
+        conditioning_policy::ConditioningPolicy=ConditioningPolicy())
+    return _fingerprint(problem, assess_conditioning(problem, conditioning_policy), profile)
 end
 
 """Bounded, opt-in in-memory history for fingerprint telemetry."""
@@ -88,4 +104,95 @@ function _record!(store::HistoryStore, record::NamedTuple)
         popfirst!(store.records)
     end
     return store
+end
+
+function _fingerprints_match(query::MatrixFingerprint, candidate::MatrixFingerprint)
+    for field in fieldnames(MatrixFingerprint)
+        query_value = getfield(query, field)
+        query_value === nothing && continue
+        getfield(candidate, field) == query_value || return false
+    end
+    return true
+end
+
+"""Return bounded in-memory records matching all fields enabled in `fingerprint`."""
+function similar_records(store::HistoryStore, query::MatrixFingerprint;
+        label::Union{Nothing, Symbol}=nothing)
+    return [record for record in store.records if
+        (label === nothing || record.label == label) &&
+        _fingerprints_match(query, record.fingerprint)]
+end
+
+"""A conservative history-only suggestion; it never establishes mathematical eligibility."""
+struct RouteAdvice
+    matching_records::Int
+    attempt_counts::Dict{Symbol, Int}
+    success_counts::Dict{Symbol, Int}
+    recommended_route::Union{Nothing, Symbol}
+    preconditioner_reuse::Symbol
+end
+
+function route_advice(store::HistoryStore, problem::AdaptiveLinearProblem,
+        candidates::AbstractVector{Symbol}; profile::FingerprintProfile=FingerprintProfile(),
+        conditioning_policy::ConditioningPolicy=ConditioningPolicy())
+    query = fingerprint(problem; profile=profile, conditioning_policy=conditioning_policy)
+    records = similar_records(store, query; label=problem.label)
+    attempts = Dict{Symbol, Int}()
+    successes = Dict{Symbol, Int}()
+    for record in records
+        record.route in candidates || continue
+        attempts[record.route] = get(attempts, record.route, 0) + 1
+        record.status in (Success, FallbackSuccess) &&
+            (successes[record.route] = get(successes, record.route, 0) + 1)
+    end
+    recommended = nothing
+    best_successes = -1
+    best_attempts = 1
+    for route in candidates
+        successes_for_route = get(successes, route, 0)
+        attempts_for_route = get(attempts, route, 0)
+        if successes_for_route > 0 &&
+           (recommended === nothing || successes_for_route * best_attempts > best_successes * attempts_for_route ||
+            (successes_for_route * best_attempts == best_successes * attempts_for_route &&
+             successes_for_route > best_successes))
+            recommended = route
+            best_successes = successes_for_route
+            best_attempts = attempts_for_route
+        end
+    end
+    preconditioner = problem.preconditioner
+    preconditioner_name = preconditioner === nothing ? :none : preconditioner.name
+    reusable = preconditioner_name != :none && any(record -> record.status in (Success, FallbackSuccess) &&
+        hasproperty(record, :preconditioner) && record.preconditioner == preconditioner_name, records)
+    return RouteAdvice(length(records), attempts, successes, recommended,
+        preconditioner_name == :none ? :not_applicable :
+        (reusable ? :reuse_candidate : :no_reuse_evidence))
+end
+
+"""Persist only explicitly selected in-memory history; load files from trusted local paths only."""
+function save_history(path::AbstractString, store::HistoryStore)
+    open(path, "w") do io
+        serialize(io, (format_version=1, records=store.records))
+    end
+    return path
+end
+
+function load_history!(store::HistoryStore, path::AbstractString)
+    payload = open(deserialize, path)
+    payload.format_version == 1 || throw(ArgumentError("unsupported history format"))
+    for record in payload.records
+        record isa NamedTuple || throw(ArgumentError("history contains an invalid record"))
+        _record!(store, record)
+    end
+    return store
+end
+
+function _trace_payload(iteration, policy::TelemetryPolicy)
+    policy.level in (:trace, :diagnostic) || return nothing
+    iteration === nothing && return (residuals=Float64[], truncated=false)
+    limit = policy.budget.max_trace_samples
+    limit == 0 && return (residuals=Float64[], truncated=!isempty(iteration.residual_history))
+    sampled = iteration.residual_history[1:policy.sample_every:end]
+    truncated = length(sampled) > limit
+    return (residuals=sampled[1:min(end, limit)], truncated=truncated)
 end

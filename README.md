@@ -48,21 +48,21 @@ benchmarks/          受版本控制的数学基准定义
 
 ## 当前状态
 
-`0.0.3` 是当前发布基线：显式稠密/稀疏矩阵的直接路线、数学契约资格门、分层路线控制、可选条件数证据，以及默认关闭的 `off`、`basic`、`fingerprint` 遥测。
+`0.0.4` 是当前发布基线：显式稠密/稀疏矩阵的直接与 Krylov 路线、数学契约资格门、分层路线控制、版本匹配的条件信息、数值诊断和受控历史建议。
 
 这一阶段刻意未实现 Krylov 迭代法、预条件器、矩阵无显式表示、GPU、MPI 或外部后端；未实现的路线会明确拒绝，而不会伪装为可用能力。
 
-`0.0.3` 包含 `SolveStatus`、`ResidualPolicy` 和按需 `RouteCertificate`。只有在 `TelemetryPolicy(level=:basic, output=OutputRequest(certificate=true))` 或指纹模式中明确请求时，才生成路线证书；默认 `off` 不记录证书。零右端项不计算未定义的相对残差，只以绝对残差验收。
+`0.0.4` 包含 `SolveStatus`、`ResidualPolicy`、`ResourceBudget`、`BackendPolicy` 和按需 `RouteCertificate`。只有在 `TelemetryPolicy(level=:basic, output=OutputRequest(certificate=true))` 或指纹模式中明确请求时，才生成路线证书；默认 `off` 不记录证书。零右端项不计算未定义的相对残差，只以绝对残差验收。
 
 包入口为 `src/AdaptiveLinearSolvers.jl`。测试已写入 `test/runtests.jl`；本次仅建立代码，尚未执行测试。
 
-`0.0.3` 的 `plan(problem, policy)` 只生成路线计划，不执行数值内核。它将方法族、直接方法、迭代方法、预条件器和回退策略分层判定；直接与已注册的 Krylov 路线均可执行。
+`0.0.4` 的 `plan(problem, policy)` 只生成路线计划，不执行数值内核。它将方法族、直接方法、迭代方法、预条件器和回退策略分层判定；直接与已注册的 Krylov 路线均可执行。
 
-`0.0.3` 包含 `qualify_iterative(problem, method)` 与 Krylov 执行后端。它对 CG（Conjugate Gradient，共轭梯度法）、MINRES（Minimum Residual，最小残量法）、GMRES（Generalized Minimal Residual，广义最小残量法）、FGMRES（Flexible Generalized Minimal Residual，柔性广义最小残量法）和 BiCGStab（Biconjugate Gradient Stabilized，稳定化双共轭梯度法）建模并执行；可变或非线性预条件器会拒绝 GMRES 并将 FGMRES 置为优先合格候选。详细发布说明见 [v0.0.3](docs/releases/v0.0.3.md)。
+`0.0.4` 包含 `qualify_iterative(problem, method)` 与 Krylov 执行后端。它对 CG（Conjugate Gradient，共轭梯度法）、MINRES（Minimum Residual，最小残量法）、GMRES（Generalized Minimal Residual，广义最小残量法）、FGMRES（Flexible Generalized Minimal Residual，柔性广义最小残量法）和 BiCGStab（Biconjugate Gradient Stabilized，稳定化双共轭梯度法）建模并执行；可变或非线性预条件器会拒绝 GMRES 并将 FGMRES 置为优先合格候选。详细发布说明见 [v0.0.4](docs/releases/v0.0.4.md)。
 
-`0.0.3` 接入 `Krylov.jl` 后端，可实际执行上述迭代方法。`IterationControl` 统一设置迭代数、时间和残差历史预算，`IterationReport` 返回收敛状态、迭代数、后端停止原因、耗时与可选残差历史。`PreconditionerContract.operator` 必须表示 $P^{-1}$ 的实际作用；固定线性预条件器传给 Krylov 的左预条件器 `M`，可变预条件器仅传给 FGMRES 的柔性右预条件器 `N`。
+`0.0.4` 接入 `Krylov.jl` 后端，可实际执行上述迭代方法。`IterationControl` 与 `ResourceBudget` 共同限制迭代数和时间；`IterationReport` 返回收敛状态、迭代数、后端停止原因、耗时与可选残差历史。`PreconditionerContract.operator` 必须表示 $P^{-1}$ 的实际作用；固定线性预条件器传给 Krylov 的左预条件器 `M`，可变预条件器仅传给 FGMRES 的柔性右预条件器 `N`。
 
-`0.0.3` 还支持 `MatrixFreeOperator(rows, cols, apply!)` 和 `BlockOperator`。调用方只需提供原位 $y=Ax$ 作用；直接分解路线会被拒绝，未锁定直接路线时规划器自动转向 Krylov 迭代路线。
+`0.0.4` 还支持 `MatrixFreeOperator(rows, cols, apply!)` 和 `BlockOperator`。调用方只需提供原位 $y=Ax$ 作用；直接分解路线会被拒绝，未锁定直接路线时规划器自动转向 Krylov 迭代路线。
 
 ## 本地使用与测试
 

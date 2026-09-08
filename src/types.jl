@@ -24,11 +24,95 @@ Base.@kwdef struct MathematicalContract
     rank_deficient::PropertyEvidence = PropertyEvidence()
 end
 
-"""Optional conditioning evidence obtained outside the router."""
+"""Conditioning information with explicit metric, operator, provenance, and matrix version."""
 Base.@kwdef struct ConditioningInfo
     estimate::Union{Nothing, Float64} = nothing
+    metric::Symbol = :unknown
+    operator::Symbol = :original
+    matrix_version::Any = nothing
     source::Symbol = :unspecified
     reliable::Bool = false
+    evidence::Symbol = :unspecified
+end
+
+"""Hard limits for opt-in numerical diagnostics; zero dimension means no estimate is permitted."""
+Base.@kwdef struct DiagnosticBudget
+    max_seconds::Float64 = 0.0
+    max_operator_applications::Int = 0
+    max_matrix_dimension::Int = 0
+end
+
+"""Caps for opt-in telemetry sampling; zero trace samples disables trace retention."""
+Base.@kwdef struct TelemetryBudget
+    max_trace_samples::Int = 0
+    max_extra_operator_applications::Int = 0
+    max_seconds::Float64 = 0.0
+end
+
+"""Execution limits shared by route selection and backend invocation; zero integer limits mean no extra cap."""
+Base.@kwdef struct ResourceBudget
+    max_seconds::Float64 = Inf
+    max_iterations::Int = 0
+    max_memory_bytes::Int = 0
+    max_operator_applications::Int = 0
+    execution::Symbol = :serial_cpu
+end
+
+"""Backend selection is explicit; `:auto` chooses only registered, implemented capabilities."""
+Base.@kwdef struct BackendPolicy
+    requested::Symbol = :auto
+    allow_fallback::Bool = true
+end
+
+"""Declared backend coverage, independent of whether an optional package is installed."""
+struct BackendCapability
+    name::Symbol
+    package::Symbol
+    routes::Vector{Symbol}
+    execution_modes::Vector{Symbol}
+    implemented::Bool
+end
+
+"""Result of matching a route to a backend without invoking numerical work."""
+struct BackendSelection
+    name::Union{Nothing, Symbol}
+    available::Bool
+    reason::Symbol
+end
+
+"""Conservative resource admission result; unknown memory is never silently treated as bounded."""
+struct ResourceAssessment
+    eligible::Bool
+    reason::Symbol
+    estimated_memory_bytes::Union{Nothing, Int}
+end
+
+"""Policy for validating caller data and optionally estimating conditioning after route planning."""
+Base.@kwdef struct ConditioningPolicy
+    use_external::Bool = true
+    require_matching_version::Bool = true
+    require_reliable_external::Bool = true
+    estimation::Symbol = :none
+    budget::DiagnosticBudget = DiagnosticBudget()
+end
+
+"""Validation result for supplied or explicitly estimated conditioning information."""
+struct ConditioningAssessment
+    information::Union{Nothing, ConditioningInfo}
+    accepted::Bool
+    reason::Symbol
+    state::Symbol
+end
+
+"""Separated numerical diagnosis; no state is silently promoted to a mathematical qualification."""
+struct NumericalDiagnosis
+    conditioning::ConditioningAssessment
+    iteration_state::Symbol
+    preconditioner_state::Symbol
+    overall_state::Symbol
+    estimate_performed::Bool
+    elapsed_seconds::Float64
+    notes::Vector{String}
 end
 
 """Mathematical semantics of a preconditioner supplied by the caller."""
@@ -42,21 +126,23 @@ Base.@kwdef struct PreconditionerContract
 end
 
 """A linear system plus optional mathematical and operational evidence."""
-Base.@kwdef struct AdaptiveLinearProblem{TA, TB, TC, TI, TP}
+Base.@kwdef struct AdaptiveLinearProblem{TA, TB, TC, TI, TP, TV}
     A::TA
     b::TB
     contract::TC = MathematicalContract()
     conditioning::TI = nothing
     preconditioner::TP = nothing
     label::Symbol = :anonymous
+    matrix_version::TV = nothing
 end
 
 function AdaptiveLinearProblem(A, b;
         contract::MathematicalContract=MathematicalContract(),
         conditioning::Union{Nothing, ConditioningInfo}=nothing,
         preconditioner::Union{Nothing, PreconditionerContract}=nothing,
-        label::Symbol=:anonymous)
-    return AdaptiveLinearProblem(A, b, contract, conditioning, preconditioner, label)
+        label::Symbol=:anonymous, matrix_version=nothing)
+    return AdaptiveLinearProblem(A, b, contract, conditioning, preconditioner, label,
+        matrix_version)
 end
 
 @enum SolveStatus begin

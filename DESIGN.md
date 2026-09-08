@@ -52,16 +52,18 @@ end
 条件信息是数学契约的可选字段，而不是每次调用都触发的前置计算：
 
 ```julia
-struct ConditioningInfo{T}
-    value::Union{Nothing,T}
+struct ConditioningInfo
+    estimate::Union{Nothing,Float64}
     metric::Symbol          # :kappa_1, :kappa_2, :kappa_inf, :rcond
     operator::Symbol        # :original, :left_preconditioned, :right_preconditioned
-    evidence::Symbol        # :exact, :estimated, :external, :qualitative
     matrix_version
+    source::Symbol
+    reliable::Bool
+    evidence::Symbol        # :exact, :estimated, :external, :qualitative
 end
 ```
 
-`ConditioningPolicy` 控制是否使用输入、是否允许 `:cheap` 或 `:full` 估计，以及诊断预算。计划器只采用与当前矩阵版本、范数和候选预条件形式匹配的条件信息；规模分类则由内存、时间、右端项复用和稀疏 fill-in 风险共同决定。完整语义、估计方法与未知条件数时的路线见[理论基础的规模、资源与条件信息章节](THEORY.md#scale-and-conditioning)。
+`ConditioningPolicy` 控制是否使用外部信息、是否要求版本/可信度匹配、是否允许 `:cheap` 或 `:full` 估计，以及诊断预算。`plan` 只验证外部信息，保持无数值执行副作用；`diagnose` 才在调用方明确授权预算时估计。版本失配、不可靠或无效信息不会改变路线排序。`NumericalDiagnosis` 将条件状态、迭代状态、预条件器状态与综合状态分开返回；其按需输出由 `OutputRequest(diagnostics=true)` 或路线证书承载。完整语义、估计方法与未知条件数时的路线见[理论基础的规模、资源与条件信息章节](THEORY.md#scale-and-conditioning)。
 
 ```julia
 struct TelemetryPolicy{S,K}
@@ -166,6 +168,8 @@ inspect(problem)
 
 路由器不应以完整条件数作为大规模问题的常规前置计算，但必须接受版本匹配的外部条件信息，并在诊断预算允许时执行按需估计。对迭代法，执行监控应使用残差下降率、停滞、breakdown、内存、时间预算和预条件器构造成本；具体路线规则见[理论基础的规模、资源与条件信息章节](THEORY.md#scale-and-conditioning)。
 
+`ResourceBudget` 统一收紧时间、迭代、内存和算子应用预算；`BackendPolicy` 只可选择已登记且已实现的后端。当前标准库直接法与 `Krylov.jl` 仅支持串行 CPU；GPU、MPI、PETSc、LinearSolve.jl 与 IterativeSolvers.jl 作为未实现适配器显式登记，不能被自动选择。后端覆盖、资源准入和后续接入契约见[计算资源与后端](docs/BACKENDS.md)。
+
 `HistoryStore` 只接收 `fingerprint` 及以上级别、且同时满足 `emit_on` 事件条件的 `SolveRecord`，并按 `family_key` 与标签指纹检索相似历史。它只能向计划器提供候选路线的排序分数、预条件器复用提示和诊断建议；资格门、用户 `Lock`/`Forbid` 和当前预算仍具有更高优先级。初始实现使用容量受限的内存存储，避免在默认求解路径中写入大型原始数据。
 
 ## 9. `0.0.3` 实施边界
@@ -174,7 +178,7 @@ inspect(problem)
 
 `RoutePolicy` 的 `family`、`direct`、`iterative`、`preconditioner` 与 `fallback` 均接受 `Auto`、`Prefer`、`Lock` 或 `Forbid`，因此可以只锁定一个层级，其余层级继续保持自动。`0.0.3` 会将未注册后端的迭代路线标记为不可执行，而不会将其交给直接执行器。
 
-实现支持 `off`、`basic` 与 `fingerprint` 遥测；`trace`、`diagnostic`、跨进程历史库和基于历史的重排序留待后续阶段。`HistoryStore` 仅在指纹模式且事件匹配时写入容量受限的内存记录。`0.0.3` 用 `SolveStatus` 区分成功、回退成功、资格拒绝、数值失败与预留的预算终止；`RouteCertificate` 仅在调用方显式请求时保存候选路线、资格证据、尝试历史、回退原因和残差验收信息。
+实现支持 `off`、`basic`、`fingerprint`、`trace` 与 `diagnostic` 遥测。`FingerprintProfile` 实际裁剪返回和匹配字段；`HistoryStore` 提供相似检索、成功率建议与显式的受信任本机持久化。历史建议只重排已合格的自动候选路线，不能覆盖用户策略或数学资格。`TelemetryBudget` 限制 trace 样本；条件估计仍须由独立的 `ConditioningPolicy` 显式授权。`SolveStatus` 区分成功、回退成功、资格拒绝、数值失败与预算终止；`RouteCertificate` 在请求时保存候选路线、资格证据、尝试历史、回退原因、残差验收和数值诊断。实现细节与持久化安全边界见[可观测性与历史自适应](docs/OBSERVABILITY.md)。
 
 ## 10. `0.0.3` 规划批次
 

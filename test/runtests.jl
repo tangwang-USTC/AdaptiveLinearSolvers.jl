@@ -3,150 +3,29 @@ using LinearAlgebra
 using SparseArrays
 using AdaptiveLinearSolvers
 
-@testset "AdaptiveLinearSolvers v0.0.3" begin
-    A = [4.0 1.0; 1.0 3.0]
-    b = [1.0, 2.0]
-    contract = MathematicalContract(
-        square=PropertyEvidence(Certified; source=:caller),
-        hermitian=PropertyEvidence(Certified; source=:caller),
-        positive_definite=PropertyEvidence(Certified; source=:caller),
-    )
-    result = solve(AdaptiveLinearProblem(A, b; contract=contract))
-    @test result.route == :cholesky
-    @test result.status == Success
-    @test result.residual_ratio < 1e-12
+include("test_support.jl")
 
-    direct_plan = plan(AdaptiveLinearProblem(A, b; contract=contract),
-        RoutePolicy(family=Lock(:direct), direct=Lock(:cholesky)))
-    @test direct_plan.execution_routes == [:cholesky]
-    @test all(decision -> decision.accepted, direct_plan.layer_decisions[1:2])
+const DEFAULT_TEST_GROUPS = (
+    "direct", "planning", "krylov", "preconditioner", "operators", "diagnostics", "history", "resources", "telemetry",
+)
+const VALID_TEST_TIERS = ("default", "nightly", "manual", "all")
+const TEST_TIER = get(ENV, "ALS_TEST_TIER", "default")
 
-    unqualified_plan = plan(AdaptiveLinearProblem(A, b), RoutePolicy(direct=Lock(:cholesky)))
-    @test isempty(unqualified_plan.execution_routes)
-    @test only(unqualified_plan.eligibility).reason == :hermitian_evidence_insufficient
+TEST_TIER in VALID_TEST_TIERS || error(
+    "Unknown ALS_TEST_TIER=$(repr(TEST_TIER)); choose default, nightly, manual, or all.")
 
-    iterative_plan = plan(AdaptiveLinearProblem(A, b), RoutePolicy(iterative=Lock(:gmres)))
-    @test iterative_plan.execution_routes == [:gmres]
-    @test iterative_plan.planned_routes == [:gmres]
-    @test isempty(iterative_plan.unavailable_routes)
+include_test_group(group::AbstractString) = include(joinpath(@__DIR__, group, "runtests.jl"))
 
-    gmres_result = solve(A, b;
-        policy=RoutePolicy(iterative=Lock(:gmres)),
-        iteration_control=IterationControl(max_iterations=20, record_history=true))
-    @test gmres_result.status == Success
-    @test gmres_result.route == :gmres
-    @test gmres_result.iteration.converged
-    @test gmres_result.iteration.iterations > 0
+function include_optional_tier(tier::AbstractString)
+    directory = joinpath(@__DIR__, tier)
+    isdir(directory) || return
+    for filename in sort(readdir(directory))
+        endswith(filename, ".jl") && include(joinpath(directory, filename))
+    end
+end
 
-    generic = solve(A, b)
-    @test generic.route == :lu
-    @test isapprox(A * generic.x, b; rtol=1e-12)
-
-    sparse_result = solve(sparse(A), b)
-    @test sparse_result.status == Success
-
-    zero_rhs = solve(A, zeros(2); residual_policy=ResidualPolicy(absolute_tolerance=1e-12))
-    @test zero_rhs.status == Success
-    @test zero_rhs.residual_ratio === nothing
-
-    rank_deficient = [1.0 0.0; 0.0 0.0]
-    rank_contract = MathematicalContract(rank_deficient=PropertyEvidence(Certified; source=:caller))
-    rank_plan = plan(AdaptiveLinearProblem(rank_deficient, [1.0, 0.0]; contract=rank_contract))
-    @test first(rank_plan.execution_routes) == :svd
-
-    fixed_preconditioner = PreconditionerContract(
-        name=:ilu,
-        operator=Diagonal([0.25, 1 / 3]),
-        fixed_within_solve=PropertyEvidence(Certified; source=:caller),
-        linear_within_solve=PropertyEvidence(Certified; source=:caller),
-        hermitian=PropertyEvidence(Certified; source=:caller),
-        positive_definite=PropertyEvidence(Certified; source=:caller),
-    )
-    variable_preconditioner = PreconditionerContract(
-        name=:adaptive_ilu,
-        operator=Diagonal(ones(2)),
-    )
-    fixed_problem = AdaptiveLinearProblem(A, b; contract=contract, preconditioner=fixed_preconditioner)
-    variable_problem = AdaptiveLinearProblem(A, b; contract=contract, preconditioner=variable_preconditioner)
-    @test qualify_iterative(fixed_problem, :cg).eligible
-    @test qualify_iterative(fixed_problem, :gmres).eligible
-    @test qualify_iterative(variable_problem, :gmres).reason == :variable_or_unknown_preconditioner_requires_fgmres
-    @test qualify_iterative(variable_problem, :fgmres).eligible
-    @test !qualify_iterative(AdaptiveLinearProblem(A, b), :minres).eligible
-
-    insufficient_preconditioner = PreconditionerContract(
-        name=:unspecified_spd,
-        operator=Diagonal(ones(2)),
-        fixed_within_solve=PropertyEvidence(Certified; source=:caller),
-        linear_within_solve=PropertyEvidence(Certified; source=:caller),
-    )
-    @test qualify_iterative(AdaptiveLinearProblem(A, b; contract=contract,
-        preconditioner=insufficient_preconditioner), :cg).reason ==
-        :preconditioner_hermitian_positive_definite_evidence_insufficient
-
-    flexible_plan = plan(variable_problem, RoutePolicy(iterative=Prefer(:gmres)))
-    @test flexible_plan.planned_routes[1] == :fgmres
-    @test flexible_plan.execution_routes[1] == :fgmres
-    @test isempty(flexible_plan.unavailable_routes)
-
-    flexible_result = solve(variable_problem;
-        policy=RoutePolicy(iterative=Prefer(:gmres)),
-        iteration_control=IterationControl(max_iterations=20))
-    @test flexible_result.status == Success
-    @test flexible_result.route == :fgmres
-
-    fgmres_result = solve(A, b;
-        policy=RoutePolicy(iterative=Lock(:fgmres)),
-        iteration_control=IterationControl(max_iterations=20))
-    @test fgmres_result.status == Success
-    @test fgmres_result.iteration.method == :fgmres
-
-    matrix_free = MatrixFreeOperator(2, 2, (y, x) -> begin
-        y[1] = 4 * x[1] + x[2]
-        y[2] = x[1] + 3 * x[2]
-        nothing
-    end)
-    matrix_free_problem = AdaptiveLinearProblem(matrix_free, b)
-    matrix_free_plan = plan(matrix_free_problem)
-    @test matrix_free_plan.execution_routes == [:gmres]
-    @test all(decision -> !decision.eligible,
-        matrix_free_plan.eligibility[1:4])
-    matrix_free_result = solve(matrix_free_problem;
-        iteration_control=IterationControl(max_iterations=20))
-    @test matrix_free_result.status == Success
-    @test matrix_free_result.route == :gmres
-
-    locked_direct_matrix_free = plan(matrix_free_problem, RoutePolicy(direct=Lock(:lu)))
-    @test isempty(locked_direct_matrix_free.planned_routes)
-
-    layout = BlockLayout([1, 1])
-    blocks = Matrix{Any}(undef, 2, 2)
-    blocks[1, 1] = reshape([4.0], 1, 1)
-    blocks[1, 2] = reshape([1.0], 1, 1)
-    blocks[2, 1] = reshape([1.0], 1, 1)
-    blocks[2, 2] = reshape([3.0], 1, 1)
-    block_operator = BlockOperator(layout, blocks)
-    block_problem = AdaptiveLinearProblem(block_operator, b)
-    @test blockrange(layout, 2) == 2:2
-    @test plan(block_problem).execution_routes == [:gmres]
-    block_result = solve(block_problem;
-        iteration_control=IterationControl(max_iterations=20))
-    @test block_result.status == Success
-    @test isapprox(block_operator * block_result.x, b; rtol=1e-12)
-
-    history = HistoryStore(1)
-    telemetry = TelemetryPolicy(level=:fingerprint,
-        output=OutputRequest(route=true, residual_ratio=true), emit_on=(:success,))
-    traced = solve(A, b; telemetry=telemetry, history=history)
-    @test traced.telemetry.fingerprint.representation == :dense_explicit
-    @test length(history.records) == 1
-
-    audited = solve(AdaptiveLinearProblem(A, b; contract=contract),
-        telemetry=TelemetryPolicy(level=:basic, output=OutputRequest(certificate=true)))
-    @test audited.certificate.selected_route == :cholesky
-    @test audited.certificate.residual_accepted
-
-    rejected = solve(A, b; policy=RoutePolicy(direct=Lock(:cholesky)))
-    @test rejected.status == QualificationRejected
-    @test_throws ArgumentError AdaptiveLinearSolvers._validate_telemetry(TelemetryPolicy(level=:trace))
+@testset "AdaptiveLinearSolvers v0.0.4" begin
+    foreach(include_test_group, DEFAULT_TEST_GROUPS)
+    TEST_TIER in ("nightly", "all") && include_optional_tier("nightly")
+    TEST_TIER in ("manual", "all") && include_optional_tier("manual")
 end

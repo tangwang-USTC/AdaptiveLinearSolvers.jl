@@ -28,6 +28,8 @@ struct RoutePlan
     execution_routes::Vector{Symbol}
     unavailable_routes::Vector{Symbol}
     layer_decisions::Vector{LayerDecision}
+    conditioning::ConditioningAssessment
+    history_advice::Union{Nothing, RouteAdvice}
 end
 
 """Opt-in, compact audit record of route qualification, attempts, and residual acceptance."""
@@ -43,6 +45,7 @@ struct RouteCertificate
     residual_norm::Union{Nothing, Float64}
     residual_ratio::Union{Nothing, Float64}
     residual_accepted::Bool
+    diagnosis::Union{Nothing, NumericalDiagnosis}
     notes::Vector{String}
 end
 
@@ -86,8 +89,18 @@ function _prefer_first(routes::Vector{Symbol}, choice::RouteChoice)
     return vcat(Symbol[choice.route], [route for route in routes if route != choice.route])
 end
 
-function _direct_order(problem::AdaptiveLinearProblem)
-    if _certified_or_proved(problem.contract.rank_deficient)
+function _history_reorder(routes::Vector{Symbol}, advice::Union{Nothing, RouteAdvice},
+        policy::RoutePolicy)
+    advice === nothing && return routes
+    advice.recommended_route === nothing && return routes
+    (policy.family isa Auto && policy.direct isa Auto && policy.iterative isa Auto) || return routes
+    return vcat(Symbol[advice.recommended_route],
+        [route for route in routes if route != advice.recommended_route])
+end
+
+function _direct_order(problem::AdaptiveLinearProblem, conditioning::ConditioningAssessment)
+    if _certified_or_proved(problem.contract.rank_deficient) ||
+       conditioning.state == :near_rank_deficient
         return Symbol[:svd, :qr, :lu, :cholesky]
     end
     return Symbol[:cholesky, :lu, :qr, :svd]
@@ -147,13 +160,17 @@ function _eligibility(route::Symbol, problem::AdaptiveLinearProblem)
 end
 
 """
-    plan(problem, policy=RoutePolicy())
+    plan(problem, policy=RoutePolicy(); conditioning_policy=ConditioningPolicy())
 
-Build a route plan without executing numerical kernels. In version 0.0.3 only the
-direct family is executable; requests that lock an unavailable iterative or
-preconditioner layer produce an empty executable route list and an explicit decision.
+Build a route plan without executing numerical kernels. Version-matched external
+conditioning data may affect ordering, but opt-in estimation is deferred to `diagnose`.
 """
-function plan(problem::AdaptiveLinearProblem, policy::RoutePolicy=RoutePolicy())
+function plan(problem::AdaptiveLinearProblem, policy::RoutePolicy=RoutePolicy();
+        conditioning_policy::ConditioningPolicy=ConditioningPolicy(),
+        history::Union{Nothing, HistoryStore}=nothing,
+        fingerprint_profile::FingerprintProfile=FingerprintProfile())
+    _validate_conditioning_policy(conditioning_policy)
+    conditioning = assess_conditioning(problem, conditioning_policy)
     direct_routes = _routes(_DIRECT_CAPABILITIES)
     iterative_routes = _routes(_ITERATIVE_CAPABILITIES)
     layer_decisions = LayerDecision[
@@ -165,7 +182,7 @@ function plan(problem::AdaptiveLinearProblem, policy::RoutePolicy=RoutePolicy())
     ]
 
     direct_enabled = _allows(policy.family, :direct) && !(policy.iterative isa Lock)
-    direct_candidates = direct_enabled ? [route for route in _direct_order(problem)
+    direct_candidates = direct_enabled ? [route for route in _direct_order(problem, conditioning)
         if _allows(policy.direct, route)] : Symbol[]
     direct_candidates = _prefer_first(direct_candidates, policy.direct)
 
@@ -209,5 +226,11 @@ function plan(problem::AdaptiveLinearProblem, policy::RoutePolicy=RoutePolicy())
         execution_routes = Symbol[]
     end
 
-    return RoutePlan(candidates, eligibility, planned_routes, execution_routes, unavailable_routes, layer_decisions)
+    history_advice = history === nothing ? nothing :
+        route_advice(history, problem, execution_routes;
+            profile=fingerprint_profile, conditioning_policy=conditioning_policy)
+    execution_routes = _history_reorder(execution_routes, history_advice, policy)
+
+    return RoutePlan(candidates, eligibility, planned_routes, execution_routes,
+        unavailable_routes, layer_decisions, conditioning, history_advice)
 end

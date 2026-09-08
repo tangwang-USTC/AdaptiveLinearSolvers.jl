@@ -4,14 +4,10 @@
 
 ## [Unreleased]
 
-## [0.0.2] - 2026-09-08
+## [0.0.3] - 2026-09-08
 
 ### Added
 
-- 增加无数值执行副作用的 `plan(problem, policy)` 规划层、路线能力和分层判定记录。
-- 将直接路线执行器改为只消费 `RoutePlan.execution_routes`，并扩展规划、稀疏、零右端项和秩亏测试。
-- 增加迭代法与预条件器数学资格接口，明确 GMRES 与 FGMRES 对可变预条件器的分流规则。
-- 将迭代资格接入规划结果，区分数学合格但尚无后端的 `unavailable_routes` 与实际可执行路线。
 - 接入 `Krylov.jl` 作为无预条件器 CG、MINRES、GMRES、FGMRES 与 BiCGStab 的执行后端，并返回统一的迭代报告和预算终止状态。
 - 增加可应用预条件器算子接口，将固定预条件器映射到 Krylov 左预条件器 `M`，将可变预条件器映射到 FGMRES 右预条件器 `N`。
 - 增加 `MatrixFreeOperator`，使未显式组装矩阵的线性作用可自动分流到 Krylov 路线。
@@ -21,6 +17,15 @@
 ### Fixed
 
 - 为自定义矩阵自由与块算子补齐 Krylov 所需的 `size(A, dimension)` 协议。
+
+## [0.0.2] - 2026-09-08
+
+### Added
+
+- 增加无数值执行副作用的 `plan(problem, policy)` 规划层、路线能力和分层判定记录。
+- 将直接路线执行器改为只消费 `RoutePlan.execution_routes`，并扩展规划、稀疏、零右端项和秩亏测试。
+- 增加迭代法与预条件器数学资格接口，明确 GMRES 与 FGMRES 对可变预条件器的分流规则。
+- 将迭代资格接入规划结果，区分数学合格但尚无后端的 `unavailable_routes` 与实际可执行路线。
 
 ## [0.0.1] - 2026-09-08
 

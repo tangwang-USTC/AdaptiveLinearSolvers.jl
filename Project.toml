@@ -1,6 +1,6 @@
 name = "AdaptiveLinearSolvers"
 uuid = "d3216721-0dc7-4f36-a2dd-dfdb75fac214"
-version = "0.0.2"
+version = "0.0.3"
 authors = ["Tiangong"]
 
 [deps]

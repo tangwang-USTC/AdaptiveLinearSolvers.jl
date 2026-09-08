@@ -168,51 +168,51 @@ inspect(problem)
 
 `HistoryStore` 只接收 `fingerprint` 及以上级别、且同时满足 `emit_on` 事件条件的 `SolveRecord`，并按 `family_key` 与标签指纹检索相似历史。它只能向计划器提供候选路线的排序分数、预条件器复用提示和诊断建议；资格门、用户 `Lock`/`Forbid` 和当前预算仍具有更高优先级。初始实现使用容量受限的内存存储，避免在默认求解路径中写入大型原始数据。
 
-## 9. `0.0.2` 实施边界
+## 9. `0.0.3` 实施边界
 
 首个 Julia 实现仅覆盖显式稠密和稀疏矩阵的直接路线：通用反斜杠、`LU`（Lower-Upper）分解、Cholesky 分解、`QR`（Orthogonal-Triangular）分解与 `SVD`（Singular Value Decomposition，奇异值分解）。自动路线只有在调用方以 `Certified` 或 `Proved` 给出 Hermitian 正定证据时才选 Cholesky；它不会从矩阵元素抽样推断该资格。
 
-`RoutePolicy` 的 `family`、`direct`、`iterative`、`preconditioner` 与 `fallback` 均接受 `Auto`、`Prefer`、`Lock` 或 `Forbid`，因此可以只锁定一个层级，其余层级继续保持自动。`0.0.2` 会将未实现的迭代路线标记为不可执行，而不会将其交给直接执行器。
+`RoutePolicy` 的 `family`、`direct`、`iterative`、`preconditioner` 与 `fallback` 均接受 `Auto`、`Prefer`、`Lock` 或 `Forbid`，因此可以只锁定一个层级，其余层级继续保持自动。`0.0.3` 会将未注册后端的迭代路线标记为不可执行，而不会将其交给直接执行器。
 
-实现支持 `off`、`basic` 与 `fingerprint` 遥测；`trace`、`diagnostic`、跨进程历史库和基于历史的重排序留待后续阶段。`HistoryStore` 仅在指纹模式且事件匹配时写入容量受限的内存记录。`0.0.2` 用 `SolveStatus` 区分成功、回退成功、资格拒绝、数值失败与预留的预算终止；`RouteCertificate` 仅在调用方显式请求时保存候选路线、资格证据、尝试历史、回退原因和残差验收信息。
+实现支持 `off`、`basic` 与 `fingerprint` 遥测；`trace`、`diagnostic`、跨进程历史库和基于历史的重排序留待后续阶段。`HistoryStore` 仅在指纹模式且事件匹配时写入容量受限的内存记录。`0.0.3` 用 `SolveStatus` 区分成功、回退成功、资格拒绝、数值失败与预留的预算终止；`RouteCertificate` 仅在调用方显式请求时保存候选路线、资格证据、尝试历史、回退原因和残差验收信息。
 
-## 10. `0.0.2` 规划批次
+## 10. `0.0.3` 规划批次
 
 当前开发批次将规划与执行分离。`plan(problem, policy)` 返回 `RoutePlan`，其中包含候选路线、逐路线 `EligibilityDecision`、各策略层的 `LayerDecision` 和可执行路线顺序；该函数不得分解矩阵、申请求解工作区或计算残差。`solve` 只执行 `RoutePlan.execution_routes`，并将计划判定写入按需 `RouteCertificate`。
 
 在当前基线中，直接方法族及其 `direct` 层已可执行；`iterative`、`preconditioner` 与 `fallback` 层已进入独立判定模型，但尚无可执行能力。对这些层的 `Lock` 请求必须给出空计划和明确拒绝，对 `Prefer` 请求仅记录“当前不可用”并允许其他自动路线继续。只有该规划批次的测试、文档和验收条件整体完成后，才递增版本号。
 
-## 11. `0.0.2` 迭代资格批次
+## 11. `0.0.3` 迭代资格批次
 
 本批次先定义迭代法与预条件器的统一数学资格接口，不调用迭代内核。`PreconditionerContract` 记录预条件器是否在一次 `solve` 内固定，以及是否在线性意义下固定；`qualify_iterative(problem, method)` 返回可审计的 `IterativeQualification`。
 
 首批资格规则覆盖 CG（Conjugate Gradient，共轭梯度法）、MINRES（Minimum Residual，最小残量法）、GMRES（Generalized Minimal Residual，广义最小残量法）、FGMRES（Flexible Generalized Minimal Residual，柔性广义最小残量法）和 BiCGStab（Biconjugate Gradient Stabilized，稳定化双共轭梯度法）。CG 要求已认证 Hermitian 正定性，MINRES 要求已认证 Hermitian 性；对要求固定线性预条件器的方法，若调用方提供的预条件器在一次求解内可变、非线性或性质未知，资格判定必须拒绝并给出 `:variable_or_unknown_preconditioner_requires_fgmres`。FGMRES 为该情形的可行候选，但本批次不执行任何 Krylov 迭代。
 
-## 12. `0.0.2` 迭代路线规划批次
+## 12. `0.0.3` 迭代路线规划批次
 
 `RoutePlan` 将路线分为 `candidate_routes`、`planned_routes`、`execution_routes` 与 `unavailable_routes`。`planned_routes` 只表示数学资格通过；`execution_routes` 还要求当前存在可调用的数值后端；`unavailable_routes` 使调用方和审计记录能够区分“数学上正确但尚未实现”与“数学资格不满足”。
 
 当 `iterative=Lock(:gmres)` 时，规划器只保留 GMRES；若其预条件器语义不满足固定线性条件，则没有合格路线。当 `iterative=Prefer(:gmres)` 且预条件器可变、非线性或未知时，规划器保留 GMRES 的拒绝记录并将 FGMRES 放入合格计划。当前所有迭代路线仍属于 `unavailable_routes`；下一开发任务是接入首个可执行的迭代后端及其停止、失败和残差监控接口。
 
-## 13. 未发布 Krylov 执行批次
+## 13. `0.0.3` Krylov 执行批次
 
 本批次以 `Krylov.jl` 作为首个执行后端，接入 CG、MINRES、GMRES、FGMRES 与 BiCGStab。`IterationControl` 统一提供最大迭代数、墙钟时间、重启选项和残差历史记录开关；`IterationReport` 统一返回收敛标志、完成迭代数、后端状态文本、实际耗时和残差历史。`solve` 在后端未收敛且到达调用方迭代或时间上限时返回 `BudgetTerminated`，其余未收敛情形返回 `NumericalFailure`。
 
-该后端批次最初只执行无预条件器迭代路线；可应用预条件器接口在下一未发布批次中补齐。
+该后端批次最初只执行无预条件器迭代路线；可应用预条件器接口已在同一发布批次中补齐。
 
-## 14. 未发布预条件器应用批次
+## 14. `0.0.3` 预条件器应用批次
 
 `PreconditionerContract.operator` 表示预条件器逆作用 $P^{-1}$，而不是矩阵 $P$ 本身。调用方负责提供可被 Krylov 后端应用的线性算子或矩阵；本项目在此批次不构造 Jacobi、ILU（Incomplete LU，不完全 LU 分解）、代数多重网格或物理预条件器。
 
 对固定线性预条件器，CG、MINRES、GMRES 与 BiCGStab 将该逆作用传入 Krylov 的左预条件参数 `M`。对 FGMRES，可变或非线性预条件器作为柔性右预条件参数 `N` 传入。CG 与 MINRES 在存在预条件器时还要求调用方以 `Certified` 或 `Proved` 证明该预条件器 Hermitian 正定；证据不足必须拒绝，而非凭名称或矩阵抽样猜测。没有 `operator` 的非空预条件器契约仍使路线保持不可执行。
 
-## 15. 未发布矩阵自由算子批次
+## 15. `0.0.3` 矩阵自由算子批次
 
 `MatrixFreeOperator(rows, cols, apply!)` 只要求调用方实现原位线性作用 $y=Ax$，并提供 `size`、`mul!` 与向量乘法语义，因此无需显式组装稠密或稀疏矩阵即可交给 Krylov 后端。矩阵自由的数学定义、显式稀疏矩阵的区别、Vlasov-Fokker-Planck/Maxwell 例子、残差语义和伴随作用限制见[理论文档 3.1 节](THEORY.md#matrix-free-operators)。
 
 路由器对矩阵自由表示的 LU、Cholesky、QR 和 SVD 返回 `:matrix_free_direct_route_unavailable`；若调用方未锁定直接路线，且没有其他直接路线合格，规划器自动生成满足数学资格的迭代候选。当前接口尚未定义伴随作用 $A^\dagger x$、GPU、MPI 或分布式向量。
 
-## 16. 未发布块耦合算子批次
+## 16. `0.0.3` 块耦合算子批次
 
 `BlockLayout` 将扁平 Krylov 向量划分为连续字段切片，`BlockOperator(layout, blocks)` 按块累加显式或矩阵自由子块作用。它既可表达 Vlasov-Fokker-Planck 高阶矩与 Maxwell 场的全耦合线性化，也不会要求后端改变向量存储格式。数学定义、字段耦合例子及其与 Schur 补/字段分裂的关系见[理论文档 3.2 节](THEORY.md#block-coupled-operators)。
 

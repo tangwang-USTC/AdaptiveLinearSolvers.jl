@@ -65,7 +65,8 @@ end
 
 function _fingerprint(problem::AdaptiveLinearProblem)
     return MatrixFingerprint(
-        representation=issparse(problem.A) ? :sparse_explicit : :dense_explicit,
+        representation=problem.A isa MatrixFreeOperator ? :matrix_free :
+            (issparse(problem.A) ? :sparse_explicit : :dense_explicit),
         size_band=_size_band(problem.A),
         structure=_structure_tag(problem.contract),
         conditioning=_conditioning_tag(problem.conditioning),

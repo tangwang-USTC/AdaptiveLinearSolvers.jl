@@ -14,6 +14,7 @@
 - 将迭代资格接入规划结果，区分数学合格但尚无后端的 `unavailable_routes` 与实际可执行路线。
 - 接入 `Krylov.jl` 作为无预条件器 CG、MINRES、GMRES、FGMRES 与 BiCGStab 的执行后端，并返回统一的迭代报告和预算终止状态。
 - 增加可应用预条件器算子接口，将固定预条件器映射到 Krylov 左预条件器 `M`，将可变预条件器映射到 FGMRES 右预条件器 `N`。
+- 增加 `MatrixFreeOperator`，使未显式组装矩阵的线性作用可自动分流到 Krylov 路线。
 
 ## [0.0.1] - 2026-09-08
 

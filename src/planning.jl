@@ -129,6 +129,8 @@ end
 
 function _eligibility(route::Symbol, problem::AdaptiveLinearProblem)
     contract = problem.contract
+    problem.A isa AbstractMatrix ||
+        return EligibilityDecision(route, false, :matrix_free_direct_route_unavailable)
     if route == :cholesky
         _is_square(problem.A) || return EligibilityDecision(route, false, :nonsquare)
         _certified_or_proved(contract.hermitian) || return EligibilityDecision(route, false, :hermitian_evidence_insufficient)
@@ -167,8 +169,13 @@ function plan(problem::AdaptiveLinearProblem, policy::RoutePolicy=RoutePolicy())
         if _allows(policy.direct, route)] : Symbol[]
     direct_candidates = _prefer_first(direct_candidates, policy.direct)
 
+    direct_eligibility = [_eligibility(route, problem) for route in direct_candidates]
+    direct_route_available = any(decision -> decision.eligible, direct_eligibility)
+
     iterative_requested = policy.family isa Lock || policy.family isa Prefer ||
-                          policy.iterative isa Lock || policy.iterative isa Prefer
+                          policy.iterative isa Lock || policy.iterative isa Prefer ||
+                          (!direct_route_available && !(policy.direct isa Lock) &&
+                           !(policy.family isa Lock && policy.family.route == :direct))
     iterative_enabled = iterative_requested && _allows(policy.family, :iterative)
     requested_iterative = iterative_enabled ? _iterative_candidates(problem, policy) : Symbol[]
     iterative_candidates = [route for route in requested_iterative if _allows(policy.iterative, route)]

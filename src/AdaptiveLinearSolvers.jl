@@ -5,6 +5,7 @@ using SparseArrays
 using Krylov
 
 include("types.jl")
+include("operators.jl")
 include("policy.jl")
 include("iterative.jl")
 include("krylov_backend.jl")
@@ -17,6 +18,7 @@ export AdaptiveLinearProblem, AdaptiveLinearSolution, Auto, Prefer, Lock, Forbid
        Unknown, Suspected, Claimed, Certified, Proved, ConditioningInfo,
        PreconditionerContract, IterativeMethodCapability, IterativeQualification,
        iterative_capability, qualify_iterative,
+       MatrixFreeOperator,
        SolveStatus, Success, FallbackSuccess, QualificationRejected,
        NumericalFailure, BudgetTerminated, ResidualPolicy, RouteCertificate,
        IterationControl, IterationReport,

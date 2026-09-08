@@ -101,6 +101,24 @@ using AdaptiveLinearSolvers
     @test fgmres_result.status == Success
     @test fgmres_result.iteration.method == :fgmres
 
+    matrix_free = MatrixFreeOperator(2, 2, (y, x) -> begin
+        y[1] = 4 * x[1] + x[2]
+        y[2] = x[1] + 3 * x[2]
+        nothing
+    end)
+    matrix_free_problem = AdaptiveLinearProblem(matrix_free, b)
+    matrix_free_plan = plan(matrix_free_problem)
+    @test matrix_free_plan.execution_routes == [:gmres]
+    @test all(decision -> !decision.eligible,
+        matrix_free_plan.eligibility[1:4])
+    matrix_free_result = solve(matrix_free_problem;
+        iteration_control=IterationControl(max_iterations=20))
+    @test matrix_free_result.status == Success
+    @test matrix_free_result.route == :gmres
+
+    locked_direct_matrix_free = plan(matrix_free_problem, RoutePolicy(direct=Lock(:lu)))
+    @test isempty(locked_direct_matrix_free.planned_routes)
+
     history = HistoryStore(1)
     telemetry = TelemetryPolicy(level=:fingerprint,
         output=OutputRequest(route=true, residual_ratio=true), emit_on=(:success,))

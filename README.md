@@ -62,6 +62,8 @@ benchmarks/          受版本控制的数学基准定义
 
 当前未发布工作树已接入 `Krylov.jl` 后端，可实际执行 CG、MINRES、GMRES、FGMRES 与 BiCGStab。`IterationControl` 统一设置迭代数、时间和残差历史预算，`IterationReport` 返回收敛状态、迭代数、后端停止原因、耗时与可选残差历史。`PreconditionerContract.operator` 必须表示 $P^{-1}$ 的实际作用；固定线性预条件器传给 Krylov 的左预条件器 `M`，可变预条件器仅传给 FGMRES 的柔性右预条件器 `N`。
 
+当前未发布工作树还支持 `MatrixFreeOperator(rows, cols, apply!)`。调用方只需提供原位 $y=Ax$ 作用；直接分解路线会被拒绝，未锁定直接路线时规划器自动转向 Krylov 迭代路线。
+
 ## 本地使用与测试
 
 在包尚未注册至 Julia General registry 前，不能使用 `Pkg.add("AdaptiveLinearSolvers")`。Julia 包管理器 `Pkg` 应以本地项目方式加载：

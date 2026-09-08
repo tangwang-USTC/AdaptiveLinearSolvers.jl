@@ -20,7 +20,8 @@ function _execute_route(route::Symbol, problem::AdaptiveLinearProblem,
     if iterative_capability(route) === nothing
         return _solve_route(route, problem.A, problem.b), nothing
     end
-    return _solve_krylov(route, problem.A, problem.b, residual_policy, iteration_control)
+    return _solve_krylov(route, problem.A, problem.b, residual_policy,
+        iteration_control, problem.preconditioner)
 end
 
 function _residual_metrics(A, x, b, policy::ResidualPolicy)

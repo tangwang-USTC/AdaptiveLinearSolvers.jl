@@ -27,7 +27,7 @@ function _krylov_report(method::Symbol, stats, started_ns::UInt64)
 end
 
 function _solve_krylov(method::Symbol, A, b, residual_policy::ResidualPolicy,
-        control::IterationControl)
+        control::IterationControl, preconditioner::Union{Nothing, PreconditionerContract})
     started_ns = time_ns()
     common = (; atol=residual_policy.absolute_tolerance,
         rtol=residual_policy.relative_tolerance,
@@ -35,25 +35,35 @@ function _solve_krylov(method::Symbol, A, b, residual_policy::ResidualPolicy,
         timemax=control.max_seconds,
         verbose=0,
         history=control.record_history)
+    preconditioner_keywords = _krylov_preconditioner_keywords(method, preconditioner)
     x, stats = if method == :cg
-        Krylov.cg(A, b; common...)
+        Krylov.cg(A, b; common..., preconditioner_keywords...)
     elseif method == :minres
-        Krylov.minres(A, b; common...)
+        Krylov.minres(A, b; common..., preconditioner_keywords...)
     elseif method == :gmres
-        Krylov.gmres(A, b; common..., restart=control.restart)
+        Krylov.gmres(A, b; common..., preconditioner_keywords..., restart=control.restart)
     elseif method == :fgmres
-        Krylov.fgmres(A, b; common..., restart=control.restart)
+        Krylov.fgmres(A, b; common..., preconditioner_keywords..., restart=control.restart)
     elseif method == :bicgstab
-        Krylov.bicgstab(A, b; common...)
+        Krylov.bicgstab(A, b; common..., preconditioner_keywords...)
     else
         throw(ArgumentError("Krylov backend has no implementation for route $method"))
     end
     return x, _krylov_report(method, stats, started_ns)
 end
 
+function _krylov_preconditioner_keywords(method::Symbol,
+        preconditioner::Union{Nothing, PreconditionerContract})
+    (preconditioner === nothing || preconditioner.name == :none) && return NamedTuple()
+    preconditioner.operator === nothing &&
+        throw(ArgumentError("preconditioner $(preconditioner.name) has no inverse-action operator"))
+    return method == :fgmres ? (; N=preconditioner.operator) : (; M=preconditioner.operator)
+end
+
 function _iterative_backend_available(problem::AdaptiveLinearProblem)
     preconditioner = problem.preconditioner
-    return preconditioner === nothing || preconditioner.name == :none
+    return preconditioner === nothing || preconditioner.name == :none ||
+           preconditioner.operator !== nothing
 end
 
 function _iteration_failure_status(report::IterationReport, control::IterationControl)

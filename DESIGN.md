@@ -198,7 +198,13 @@ inspect(problem)
 
 本批次以 `Krylov.jl` 作为首个执行后端，接入 CG、MINRES、GMRES、FGMRES 与 BiCGStab。`IterationControl` 统一提供最大迭代数、墙钟时间、重启选项和残差历史记录开关；`IterationReport` 统一返回收敛标志、完成迭代数、后端状态文本、实际耗时和残差历史。`solve` 在后端未收敛且到达调用方迭代或时间上限时返回 `BudgetTerminated`，其余未收敛情形返回 `NumericalFailure`。
 
-该后端批次只执行无实际预条件器对象的迭代路线。`PreconditionerContract` 当前仍是数学语义与规划依据，而非可应用算子；若调用方传入非空预条件器契约，规划器必须将相应迭代路线保留在 `unavailable_routes`，不得省略预条件步骤后直接调用 Krylov 后端。下一批次才定义可应用预条件器接口，并将固定/可变语义映射到后端参数。
+该后端批次最初只执行无预条件器迭代路线；可应用预条件器接口在下一未发布批次中补齐。
+
+## 14. 未发布预条件器应用批次
+
+`PreconditionerContract.operator` 表示预条件器逆作用 $P^{-1}$，而不是矩阵 $P$ 本身。调用方负责提供可被 Krylov 后端应用的线性算子或矩阵；本项目在此批次不构造 Jacobi、ILU（Incomplete LU，不完全 LU 分解）、代数多重网格或物理预条件器。
+
+对固定线性预条件器，CG、MINRES、GMRES 与 BiCGStab 将该逆作用传入 Krylov 的左预条件参数 `M`。对 FGMRES，可变或非线性预条件器作为柔性右预条件参数 `N` 传入。CG 与 MINRES 在存在预条件器时还要求调用方以 `Certified` 或 `Proved` 证明该预条件器 Hermitian 正定；证据不足必须拒绝，而非凭名称或矩阵抽样猜测。没有 `operator` 的非空预条件器契约仍使路线保持不可执行。
 
 预条件器只有在同一次 `solve(A, b)` 内保持固定线性算子时，才可选择 GMRES；若其在迭代中变化、是非线性的，或该性质未知，规划器必须选择 FGMRES。能力模型通过 `fixed_within_solve` 与 `linear_within_solve` 表达该条件；数学理由、适用边界和例外见[理论基础的固定与可变预条件器章节](THEORY.md#fixed-and-variable-preconditioners)。
 

@@ -32,6 +32,13 @@ function _fixed_linear_preconditioner(problem::AdaptiveLinearProblem)
            _certified_or_proved(preconditioner.linear_within_solve)
 end
 
+function _hermitian_positive_definite_preconditioner(problem::AdaptiveLinearProblem)
+    preconditioner = problem.preconditioner
+    preconditioner === nothing && return true
+    return _certified_or_proved(preconditioner.hermitian) &&
+           _certified_or_proved(preconditioner.positive_definite)
+end
+
 """
     qualify_iterative(problem, method)
 
@@ -48,6 +55,11 @@ function qualify_iterative(problem::AdaptiveLinearProblem, method::Symbol)
         return IterativeQualification(method, false, :hermitian_evidence_insufficient, capability)
     capability.requires_positive_definite && !_certified_or_proved(contract.positive_definite) &&
         return IterativeQualification(method, false, :positive_definite_evidence_insufficient, capability)
+
+    if method in (:cg, :minres) && !_hermitian_positive_definite_preconditioner(problem)
+        return IterativeQualification(method, false,
+            :preconditioner_hermitian_positive_definite_evidence_insufficient, capability)
+    end
 
     if capability.requires_fixed_linear_preconditioner && !_fixed_linear_preconditioner(problem)
         return IterativeQualification(method, false,

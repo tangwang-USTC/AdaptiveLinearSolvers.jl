@@ -34,8 +34,11 @@ end
 """Mathematical semantics of a preconditioner supplied by the caller."""
 Base.@kwdef struct PreconditionerContract
     name::Symbol = :none
+    operator::Any = nothing
     fixed_within_solve::PropertyEvidence = PropertyEvidence()
     linear_within_solve::PropertyEvidence = PropertyEvidence()
+    hermitian::PropertyEvidence = PropertyEvidence()
+    positive_definite::PropertyEvidence = PropertyEvidence()
 end
 
 """A linear system plus optional mathematical and operational evidence."""

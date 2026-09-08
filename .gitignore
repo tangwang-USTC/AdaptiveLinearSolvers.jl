@@ -1,0 +1,14 @@
+# Julia
+Manifest.toml
+*.ji
+*.cov
+*.mem
+coverage/
+
+# Local Julia environments and editor state
+.julia/
+.vscode/
+
+# Operating-system files
+.DS_Store
+Thumbs.db

@@ -47,15 +47,49 @@ function AdaptiveLinearProblem(A, b;
     return AdaptiveLinearProblem(A, b, contract, conditioning, label)
 end
 
+@enum SolveStatus begin
+    Success
+    FallbackSuccess
+    QualificationRejected
+    NumericalFailure
+    BudgetTerminated
+end
+
+"""Residual acceptance policy; a zero right-hand side is assessed by absolute residual only."""
+Base.@kwdef struct ResidualPolicy
+    absolute_tolerance::Float64 = 0.0
+    relative_tolerance::Float64 = sqrt(eps(Float64))
+end
+
+"""Opt-in, compact audit record of route qualification, attempts, and residual acceptance."""
+struct RouteCertificate
+    contract::MathematicalContract
+    candidate_routes::Vector{Symbol}
+    qualified_routes::Vector{Symbol}
+    attempted_routes::Vector{Symbol}
+    selected_route::Union{Nothing, Symbol}
+    fallback_reason::Union{Nothing, Symbol}
+    residual_norm::Union{Nothing, Float64}
+    residual_ratio::Union{Nothing, Float64}
+    residual_accepted::Bool
+    notes::Vector{String}
+end
+
 """Result of one solve, including only telemetry enabled by the selected policy."""
-struct AdaptiveLinearSolution{TX, TT, TH}
+struct AdaptiveLinearSolution{TX, TC, TT, TH}
     x::TX
-    status::Symbol
-    route::Symbol
-    residual_ratio::Float64
+    status::SolveStatus
+    route::Union{Nothing, Symbol}
+    residual_ratio::Union{Nothing, Float64}
+    certificate::TC
     telemetry::TT
     history::TH
 end
 
 _certified_or_proved(evidence::PropertyEvidence) =
     evidence.level == Certified || evidence.level == Proved
+
+_status_event(status::SolveStatus) = status == Success ? :success :
+    status == FallbackSuccess ? :fallback :
+    status == QualificationRejected ? :qualification_rejected :
+    status == NumericalFailure ? :numerical_failure : :budget_terminated

@@ -48,9 +48,11 @@ benchmarks/          受版本控制的数学基准定义
 
 ## 当前状态
 
-`0.1.1` 已提供无外部依赖的数学核心：显式稠密/稀疏矩阵的直接路线、数学契约资格门、分层路线控制、可选条件数证据，以及默认关闭的 `off`、`basic`、`fingerprint` 遥测。
+`0.1.2` 已提供无外部依赖的数学核心：显式稠密/稀疏矩阵的直接路线、数学契约资格门、分层路线控制、可选条件数证据，以及默认关闭的 `off`、`basic`、`fingerprint` 遥测。
 
 这一阶段刻意未实现 Krylov 迭代法、预条件器、矩阵无显式表示、GPU、MPI 或外部后端；未实现的路线会明确拒绝，而不会伪装为可用能力。
+
+`0.1.2` 新增 `SolveStatus`、`ResidualPolicy` 和按需 `RouteCertificate`。只有在 `TelemetryPolicy(level=:basic, output=OutputRequest(certificate=true))` 或指纹模式中明确请求时，才生成路线证书；默认 `off` 不记录证书。零右端项不计算未定义的相对残差，只以绝对残差验收。
 
 包入口为 `src/AdaptiveLinearSolvers.jl`。测试已写入 `test/runtests.jl`；本次仅建立代码，尚未执行测试。
 

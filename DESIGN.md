@@ -174,7 +174,7 @@ inspect(problem)
 
 `RoutePolicy` 的 `family`、`direct`、`iterative`、`preconditioner` 与 `fallback` 均接受 `Auto`、`Prefer`、`Lock` 或 `Forbid`，因此可以只锁定一个层级，其余层级继续保持自动。`0.1.x` 会对未实现的迭代、预条件和回退路线显式报错。
 
-实现支持 `off`、`basic` 与 `fingerprint` 遥测；`trace`、`diagnostic`、跨进程历史库和基于历史的重排序留待后续阶段。`HistoryStore` 仅在指纹模式且事件匹配时写入容量受限的内存记录。
+实现支持 `off`、`basic` 与 `fingerprint` 遥测；`trace`、`diagnostic`、跨进程历史库和基于历史的重排序留待后续阶段。`HistoryStore` 仅在指纹模式且事件匹配时写入容量受限的内存记录。`0.1.2` 用 `SolveStatus` 区分成功、回退成功、资格拒绝、数值失败与预留的预算终止；`RouteCertificate` 仅在调用方显式请求时保存候选路线、资格证据、尝试历史、回退原因和残差验收信息。
 
 预条件器只有在同一次 `solve(A, b)` 内保持固定线性算子时，才可选择 GMRES；若其在迭代中变化、是非线性的，或该性质未知，规划器必须选择 FGMRES。能力模型通过 `fixed_within_solve` 与 `linear_within_solve` 表达该条件；数学理由、适用边界和例外见[理论基础的固定与可变预条件器章节](THEORY.md#fixed-and-variable-preconditioners)。
 

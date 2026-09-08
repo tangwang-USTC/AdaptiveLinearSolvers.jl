@@ -18,6 +18,10 @@
 - 在理论文档中补充矩阵自由算子的定义、Vlasov-Fokker-Planck/Maxwell 例子与路线边界，并由设计文档链接引用。
 - 增加 `BlockLayout` 与 `BlockOperator`，保留多字段耦合结构并支持块内显式/矩阵自由算子组合。
 
+### Fixed
+
+- 为自定义矩阵自由与块算子补齐 Krylov 所需的 `size(A, dimension)` 协议。
+
 ## [0.0.1] - 2026-09-08
 
 ### Added

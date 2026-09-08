@@ -14,6 +14,8 @@ function MatrixFreeOperator(rows::Integer, cols::Integer, apply!; T::Type=Float6
 end
 
 Base.size(operator::MatrixFreeOperator) = (operator.rows, operator.cols)
+Base.size(operator::MatrixFreeOperator, dimension::Integer) =
+    dimension == 1 ? operator.rows : dimension == 2 ? operator.cols : 1
 Base.eltype(::Type{MatrixFreeOperator{T, F}}) where {T, F} = T
 Base.eltype(operator::MatrixFreeOperator{T}) where {T} = T
 
@@ -68,6 +70,8 @@ function BlockOperator(layout::BlockLayout, blocks::AbstractMatrix; T::Type=Floa
 end
 
 Base.size(operator::BlockOperator) = (operator.layout.offsets[end], operator.layout.offsets[end])
+Base.size(operator::BlockOperator, dimension::Integer) =
+    dimension == 1 || dimension == 2 ? operator.layout.offsets[end] : 1
 Base.eltype(::Type{BlockOperator{T, B}}) where {T, B} = T
 Base.eltype(operator::BlockOperator{T}) where {T} = T
 

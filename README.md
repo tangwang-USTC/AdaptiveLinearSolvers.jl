@@ -48,8 +48,36 @@ benchmarks/          受版本控制的数学基准定义
 
 ## 当前状态
 
-`0.1.0` 已提供无外部依赖的数学核心：显式稠密/稀疏矩阵的直接路线、数学契约资格门、分层路线控制、可选条件数证据，以及默认关闭的 `off`、`basic`、`fingerprint` 遥测。
+`0.1.1` 已提供无外部依赖的数学核心：显式稠密/稀疏矩阵的直接路线、数学契约资格门、分层路线控制、可选条件数证据，以及默认关闭的 `off`、`basic`、`fingerprint` 遥测。
 
 这一阶段刻意未实现 Krylov 迭代法、预条件器、矩阵无显式表示、GPU、MPI 或外部后端；未实现的路线会明确拒绝，而不会伪装为可用能力。
 
 包入口为 `src/AdaptiveLinearSolvers.jl`。测试已写入 `test/runtests.jl`；本次仅建立代码，尚未执行测试。
+
+## 本地使用与测试
+
+在包尚未注册至 Julia General registry 前，不能使用 `Pkg.add("AdaptiveLinearSolvers")`。Julia 包管理器 `Pkg` 应以本地项目方式加载：
+
+```powershell
+cd E:\juliapackaages\tools\linearsolve
+julia --project=.
+```
+
+随后在 Julia REPL（Read-Eval-Print Loop，交互式解释器）中运行：
+
+```julia
+using AdaptiveLinearSolvers
+```
+
+从其他 Julia 项目引用此工作副本时，运行：
+
+```julia
+import Pkg
+Pkg.develop(path=raw"E:\juliapackaages\tools\linearsolve")
+```
+
+测试应由包管理器运行，而非依赖编辑器的“运行当前文件”按钮：
+
+```powershell
+julia --project=. -e 'using Pkg; Pkg.test()'
+```

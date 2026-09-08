@@ -1,7 +1,7 @@
 using Test
 using AdaptiveLinearSolvers
 
-@testset "AdaptiveLinearSolvers v0.1.0" begin
+@testset "AdaptiveLinearSolvers v0.1.1" begin
     A = [4.0 1.0; 1.0 3.0]
     b = [1.0, 2.0]
     contract = MathematicalContract(

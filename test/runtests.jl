@@ -26,8 +26,8 @@ using AdaptiveLinearSolvers
 
     iterative_plan = plan(AdaptiveLinearProblem(A, b), RoutePolicy(iterative=Lock(:gmres)))
     @test isempty(iterative_plan.execution_routes)
-    @test any(decision -> decision.layer == :iterative && !decision.accepted,
-        iterative_plan.layer_decisions)
+    @test iterative_plan.planned_routes == [:gmres]
+    @test iterative_plan.unavailable_routes == [:gmres]
 
     generic = solve(A, b)
     @test generic.route == :lu
@@ -58,6 +58,10 @@ using AdaptiveLinearSolvers
     @test qualify_iterative(variable_problem, :gmres).reason == :variable_or_unknown_preconditioner_requires_fgmres
     @test qualify_iterative(variable_problem, :fgmres).eligible
     @test !qualify_iterative(AdaptiveLinearProblem(A, b), :minres).eligible
+
+    flexible_plan = plan(variable_problem, RoutePolicy(iterative=Prefer(:gmres)))
+    @test flexible_plan.planned_routes[1] == :fgmres
+    @test flexible_plan.unavailable_routes == [:fgmres]
 
     history = HistoryStore(1)
     telemetry = TelemetryPolicy(level=:fingerprint,

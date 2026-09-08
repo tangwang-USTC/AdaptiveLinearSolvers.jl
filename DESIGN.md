@@ -188,6 +188,12 @@ inspect(problem)
 
 首批资格规则覆盖 CG（Conjugate Gradient，共轭梯度法）、MINRES（Minimum Residual，最小残量法）、GMRES（Generalized Minimal Residual，广义最小残量法）、FGMRES（Flexible Generalized Minimal Residual，柔性广义最小残量法）和 BiCGStab（Biconjugate Gradient Stabilized，稳定化双共轭梯度法）。CG 要求已认证 Hermitian 正定性，MINRES 要求已认证 Hermitian 性；对要求固定线性预条件器的方法，若调用方提供的预条件器在一次求解内可变、非线性或性质未知，资格判定必须拒绝并给出 `:variable_or_unknown_preconditioner_requires_fgmres`。FGMRES 为该情形的可行候选，但本批次不执行任何 Krylov 迭代。
 
+## 12. 未发布迭代路线规划批次
+
+`RoutePlan` 将路线分为 `candidate_routes`、`planned_routes`、`execution_routes` 与 `unavailable_routes`。`planned_routes` 只表示数学资格通过；`execution_routes` 还要求当前存在可调用的数值后端；`unavailable_routes` 使调用方和审计记录能够区分“数学上正确但尚未实现”与“数学资格不满足”。
+
+当 `iterative=Lock(:gmres)` 时，规划器只保留 GMRES；若其预条件器语义不满足固定线性条件，则没有合格路线。当 `iterative=Prefer(:gmres)` 且预条件器可变、非线性或未知时，规划器保留 GMRES 的拒绝记录并将 FGMRES 放入合格计划。当前所有迭代路线仍属于 `unavailable_routes`；下一开发任务是接入首个可执行的迭代后端及其停止、失败和残差监控接口。
+
 预条件器只有在同一次 `solve(A, b)` 内保持固定线性算子时，才可选择 GMRES；若其在迭代中变化、是非线性的，或该性质未知，规划器必须选择 FGMRES。能力模型通过 `fixed_within_solve` 与 `linear_within_solve` 表达该条件；数学理由、适用边界和例外见[理论基础的固定与可变预条件器章节](THEORY.md#fixed-and-variable-preconditioners)。
 
 ## 7. 缓存

@@ -24,7 +24,9 @@ end
 struct RoutePlan
     candidate_routes::Vector{Symbol}
     eligibility::Vector{EligibilityDecision}
+    planned_routes::Vector{Symbol}
     execution_routes::Vector{Symbol}
+    unavailable_routes::Vector{Symbol}
     layer_decisions::Vector{LayerDecision}
 end
 
@@ -33,6 +35,7 @@ struct RouteCertificate
     contract::MathematicalContract
     candidate_routes::Vector{Symbol}
     qualified_routes::Vector{Symbol}
+    unavailable_routes::Vector{Symbol}
     layer_decisions::Vector{LayerDecision}
     attempted_routes::Vector{Symbol}
     selected_route::Union{Nothing, Symbol}
@@ -48,6 +51,14 @@ const _DIRECT_CAPABILITIES = (
     RouteCapability(:lu, :direct, true),
     RouteCapability(:qr, :direct, true),
     RouteCapability(:svd, :direct, true),
+)
+
+const _ITERATIVE_CAPABILITIES = (
+    RouteCapability(:cg, :iterative, false),
+    RouteCapability(:minres, :iterative, false),
+    RouteCapability(:gmres, :iterative, false),
+    RouteCapability(:fgmres, :iterative, false),
+    RouteCapability(:bicgstab, :iterative, false),
 )
 
 _routes(capabilities) = Symbol[capability.route for capability in capabilities]
@@ -82,6 +93,40 @@ function _direct_order(problem::AdaptiveLinearProblem)
     return Symbol[:cholesky, :lu, :qr, :svd]
 end
 
+function _default_iterative_route(problem::AdaptiveLinearProblem, forbidden::Union{Nothing, Symbol}=nothing)
+    candidates = if _certified_or_proved(problem.contract.hermitian) &&
+                    _certified_or_proved(problem.contract.positive_definite)
+        Symbol[:cg, :minres, :gmres, :fgmres]
+    elseif _certified_or_proved(problem.contract.hermitian)
+        Symbol[:minres, :gmres, :fgmres]
+    elseif _fixed_linear_preconditioner(problem)
+        Symbol[:gmres, :fgmres]
+    else
+        Symbol[:fgmres]
+    end
+    for method in candidates
+        method == forbidden && continue
+        qualify_iterative(problem, method).eligible && return method
+    end
+    return nothing
+end
+
+function _iterative_candidates(problem::AdaptiveLinearProblem, policy::RoutePolicy)
+    choice = policy.iterative
+    if choice isa Lock || choice isa Prefer
+        routes = Symbol[choice.route]
+        if choice isa Prefer && choice.route == :gmres && !_fixed_linear_preconditioner(problem)
+            push!(routes, :fgmres)
+        end
+        return routes
+    elseif choice isa Forbid
+        method = _default_iterative_route(problem, choice.route)
+        return method === nothing ? Symbol[] : Symbol[method]
+    end
+    method = _default_iterative_route(problem)
+    return method === nothing ? Symbol[] : Symbol[method]
+end
+
 function _eligibility(route::Symbol, problem::AdaptiveLinearProblem)
     contract = problem.contract
     if route == :cholesky
@@ -108,26 +153,52 @@ preconditioner layer produce an empty executable route list and an explicit deci
 """
 function plan(problem::AdaptiveLinearProblem, policy::RoutePolicy=RoutePolicy())
     direct_routes = _routes(_DIRECT_CAPABILITIES)
+    iterative_routes = _routes(_ITERATIVE_CAPABILITIES)
     layer_decisions = LayerDecision[
-        _choice_decision(:family, policy.family, Set((:direct,))),
+        _choice_decision(:family, policy.family, Set((:direct, :iterative))),
         _choice_decision(:direct, policy.direct, Set(direct_routes)),
-        _choice_decision(:iterative, policy.iterative, Set{Symbol}()),
+        _choice_decision(:iterative, policy.iterative, Set(iterative_routes)),
         _choice_decision(:preconditioner, policy.preconditioner, Set{Symbol}()),
         _choice_decision(:fallback, policy.fallback, Set{Symbol}()),
     ]
 
-    candidates = [route for route in _direct_order(problem)
-                  if _allows(policy.family, :direct) && _allows(policy.direct, route)]
-    candidates = _prefer_first(candidates, policy.direct)
-    eligibility = [_eligibility(route, problem) for route in candidates]
-    execution_routes = Symbol[decision.route for decision in eligibility if decision.eligible]
+    direct_enabled = _allows(policy.family, :direct) && !(policy.iterative isa Lock)
+    direct_candidates = direct_enabled ? [route for route in _direct_order(problem)
+        if _allows(policy.direct, route)] : Symbol[]
+    direct_candidates = _prefer_first(direct_candidates, policy.direct)
 
-    iterative_locked = policy.iterative isa Lock
+    iterative_requested = policy.family isa Lock || policy.family isa Prefer ||
+                          policy.iterative isa Lock || policy.iterative isa Prefer
+    iterative_enabled = iterative_requested && _allows(policy.family, :iterative)
+    requested_iterative = iterative_enabled ? _iterative_candidates(problem, policy) : Symbol[]
+    iterative_candidates = [route for route in requested_iterative if _allows(policy.iterative, route)]
+
+    candidates = if policy.family isa Lock && policy.family.route == :iterative
+        iterative_candidates
+    elseif policy.iterative isa Lock || policy.iterative isa Prefer || policy.family isa Prefer
+        vcat(iterative_candidates, direct_candidates)
+    else
+        vcat(direct_candidates, iterative_candidates)
+    end
+    eligibility = EligibilityDecision[]
+    for route in candidates
+        if route in direct_routes
+            push!(eligibility, _eligibility(route, problem))
+        else
+            qualification = qualify_iterative(problem, route)
+            push!(eligibility, EligibilityDecision(
+                qualification.method, qualification.eligible, qualification.reason))
+        end
+    end
+    planned_routes = Symbol[decision.route for decision in eligibility if decision.eligible]
+    execution_routes = Symbol[route for route in planned_routes if route in direct_routes]
+    unavailable_routes = Symbol[route for route in planned_routes if route in iterative_routes]
+
     preconditioner_locked = policy.preconditioner isa Lock
     fallback_locked = policy.fallback isa Lock
-    if iterative_locked || preconditioner_locked || fallback_locked
+    if preconditioner_locked || fallback_locked
         execution_routes = Symbol[]
     end
 
-    return RoutePlan(candidates, eligibility, execution_routes, layer_decisions)
+    return RoutePlan(candidates, eligibility, planned_routes, execution_routes, unavailable_routes, layer_decisions)
 end

@@ -58,7 +58,7 @@ benchmarks/          受版本控制的数学基准定义
 
 当前工作树正在 `0.0.1` 基线上开发未发布的规划批次：`plan(problem, policy)` 只生成路线计划，不执行数值内核。它将方法族、直接方法、迭代方法、预条件器和回退策略分层判定；当前仅直接方法层可执行。
 
-当前未发布的下一批次还增加了 `qualify_iterative(problem, method)`：它只判定迭代方法的数学资格，尚不执行迭代。它对 CG（Conjugate Gradient，共轭梯度法）、MINRES（Minimum Residual，最小残量法）、GMRES（Generalized Minimal Residual，广义最小残量法）、FGMRES（Flexible Generalized Minimal Residual，柔性广义最小残量法）和 BiCGStab（Biconjugate Gradient Stabilized，稳定化双共轭梯度法）建模；可变或非线性预条件器会拒绝 GMRES 并推荐 FGMRES。
+当前未发布的下一批次还增加了 `qualify_iterative(problem, method)`：它只判定迭代方法的数学资格，尚不执行迭代。`plan(...)` 已将合格迭代路线列入 `planned_routes`，并用 `unavailable_routes` 明确标记其尚无执行后端。它对 CG（Conjugate Gradient，共轭梯度法）、MINRES（Minimum Residual，最小残量法）、GMRES（Generalized Minimal Residual，广义最小残量法）、FGMRES（Flexible Generalized Minimal Residual，柔性广义最小残量法）和 BiCGStab（Biconjugate Gradient Stabilized，稳定化双共轭梯度法）建模；可变或非线性预条件器会拒绝 GMRES 并将 FGMRES 置为优先合格候选。
 
 ## 本地使用与测试
 

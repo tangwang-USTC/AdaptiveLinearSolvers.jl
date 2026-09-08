@@ -38,7 +38,8 @@ function _certificate(problem::AdaptiveLinearProblem, telemetry::TelemetryPolicy
     telemetry.level == :off && return nothing
     telemetry.output.certificate || return nothing
     return RouteCertificate(problem.contract, copy(route_plan.candidate_routes),
-        copy(route_plan.execution_routes), copy(route_plan.layer_decisions), copy(attempted),
+        copy(route_plan.planned_routes), copy(route_plan.unavailable_routes),
+        copy(route_plan.layer_decisions), copy(attempted),
         selected, fallback_reason, residual_norm, residual_ratio, accepted, copy(notes))
 end
 

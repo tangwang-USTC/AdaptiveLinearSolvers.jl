@@ -4,9 +4,9 @@
 
 本项目处理线性问题
 
-\[
+$$
 A x = b,
-\]
+$$
 
 以及最小二乘、最小范数和带显式零空间约束的推广。核心层只接受数学对象：显式矩阵、块矩阵或实现了 `mul!` 的线性算子；它不依赖具体物理模型。
 
@@ -58,8 +58,8 @@ Julia 标准库提供 LU、Cholesky、Bunch-Kaufman、QR、SVD、稀疏分解与
 
 数值成功至少要求报告：
 
-- 相对残差 \(\lVert b-Ax\rVert/\lVert b\rVert\)。
-- 后向误差 \(\lVert b-Ax\rVert/(\lVert A\rVert\lVert x\rVert+\lVert b\rVert)\)。
+- 相对残差 $\lVert b-Ax\rVert/\lVert b\rVert$。
+- 后向误差 $\lVert b-Ax\rVert/(\lVert A\rVert\lVert x\rVert+\lVert b\rVert)$。
 - 算法状态：收敛、停滞、breakdown、资格拒绝或预算耗尽。
 - 迭代数、时间、内存和预条件器构造/应用代价。
 - 路线证书及每项数学证据。

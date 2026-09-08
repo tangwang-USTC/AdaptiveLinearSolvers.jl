@@ -63,6 +63,18 @@ end
 
 `ConditioningPolicy` 控制是否使用输入、是否允许 `:cheap` 或 `:full` 估计，以及诊断预算。计划器只采用与当前矩阵版本、范数和候选预条件形式匹配的条件信息；规模分类则由内存、时间、右端项复用和稀疏 fill-in 风险共同决定。完整语义、估计方法与未知条件数时的路线见[理论基础的规模、资源与条件信息章节](THEORY.md#scale-and-conditioning)。
 
+```julia
+struct TelemetryPolicy{S,K}
+    level::Symbol               # :minimal, :summary, :trace, :diagnostic
+    sample_every::Int
+    capture_true_residual::Bool
+    history_store::S
+    family_key::K
+end
+```
+
+`RouteCertificate` 始终包含 `minimal` 级信息。`TelemetryPolicy(:summary, ...)` 是希望积累历史建议时的推荐默认值；`trace` 与 `diagnostic` 必须由调用方显式请求，并受时间、内存和额外算子应用预算约束。完整的输出语义、开销与历史安全边界见[理论基础的可观测性、历史与性能预算章节](THEORY.md#51-可观测性历史与性能预算)。
+
 ## 3. 分层路线覆盖
 
 `ForcedRoute` 不表示必须锁定完整路线。它是分层覆盖策略，每一层都可取 `Auto()`、`Prefer(value)`、`Lock(value)` 或 `Forbid(value)`。
@@ -150,6 +162,8 @@ inspect(problem)
 ```
 
 路由器不应以完整条件数作为大规模问题的常规前置计算，但必须接受版本匹配的外部条件信息，并在诊断预算允许时执行按需估计。对迭代法，执行监控应使用残差下降率、停滞、breakdown、内存、时间预算和预条件器构造成本；具体路线规则见[理论基础的规模、资源与条件信息章节](THEORY.md#scale-and-conditioning)。
+
+`HistoryStore` 接收 `summary` 以上的 `SolveRecord`，并按 `family_key` 与问题指纹检索相似历史。它只能向计划器提供候选路线的排序分数、预条件器复用提示和诊断建议；资格门、用户 `Lock`/`Forbid` 和当前预算仍具有更高优先级。初始实现使用容量受限的内存存储，避免在默认求解路径中写入大型原始数据。
 
 预条件器只有在同一次 `solve(A, b)` 内保持固定线性算子时，才可选择 GMRES；若其在迭代中变化、是非线性的，或该性质未知，规划器必须选择 FGMRES。能力模型通过 `fixed_within_solve` 与 `linear_within_solve` 表达该条件；数学理由、适用边界和例外见[理论基础的固定与可变预条件器章节](THEORY.md#fixed-and-variable-preconditioners)。
 

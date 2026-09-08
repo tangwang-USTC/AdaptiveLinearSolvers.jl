@@ -19,6 +19,8 @@
 | AMG | Algebraic Multigrid，代数多重网格 |
 | PETSc | Portable, Extensible Toolkit for Scientific Computation，可移植可扩展科学计算工具包 |
 | GPU | Graphics Processing Unit，图形处理器 |
+| LAPACK | Linear Algebra PACKage，线性代数软件包 |
+| rcond | Reciprocal Condition Number，倒数条件数 |
 
 ## 1. 范围与问题定义
 
@@ -62,7 +64,53 @@ Julia 标准库提供 LU、Cholesky、Bunch-Kaufman、QR、SVD、稀疏分解与
 | 近秩亏 | 秩揭示证据 | 枢轴 QR | 截断 SVD |
 | 矩阵自由 | `mul!` 可用 | Krylov | 依据伴随是否可用选择最小二乘路线 |
 
-对病态系统，路由器不应常规计算完整条件数。完整条件数通常昂贵，且对非正规矩阵的 Krylov 收敛预测能力有限。更可靠的运行时指标是后向误差、预条件后残差下降率、停滞、breakdown、内存占用和用户规定的预算。
+<a id="scale-and-conditioning"></a>
+### 3.1 规模、资源与条件信息
+
+矩阵规模会改变路线的经济性，但不能单独决定路线。`small`、`medium` 和 `large` 应由 `RouteBudget` 的内存、时间、右端项数、稀疏模式和硬件能力共同定义，而不应在核心中写死单一维度阈值。
+
+| 资源类别 | 典型判据 | 条件信息策略 | 初始数学路线 |
+|---|---|---|---|
+| 小型 | 稠密分解可在预算内完成 | 可按需计算 $κ_p(A)$；也可从直接法获得诊断 | 主元 LU；病态或秩亏风险时 QR/SVD |
+| 中型 | 稀疏直接分解可能可行，但 fill-in 或多右端决定代价 | 优先复用分解的倒数条件数与误差界；必要时进行低成本估计 | 多右端或高复用时直接法；否则预条件 Krylov |
+| 大型 | 稀疏、矩阵自由、分布式或直接分解超预算 | 默认不做完整条件数计算；只接受先验、按需估计或迭代诊断 | 结构合格的 Krylov 加预条件器 |
+
+条件数是可选输入，而不是必须由路由器重新计算。其数学语义必须完整保存：
+
+```julia
+ConditioningInfo(
+    value = nothing,                  # 数值或定性等级
+    metric = :kappa_2,                # :kappa_1, :kappa_2, :kappa_inf, :rcond
+    operator = :original,             # :original, :left_preconditioned, :right_preconditioned
+    evidence = :estimated,            # :exact, :estimated, :external, :qualitative
+    matrix_version = nothing,
+)
+```
+
+例如，原始算子 $A$ 的条件数很大，而预条件算子 $A M^{-1}$ 的条件数可能适合 Krylov 迭代。路由性能判断应优先使用与候选路线一致的算子信息；过期的 `matrix_version`、不明范数或不明预条件形式的条件数只能作弱提示。已知条件数也不能绕过 Hermitian、正定、维度和伴随等算法资格。
+
+### 3.2 条件数的计算与估计
+
+条件数定义为
+
+$$
+\kappa_p(A)=\lVert A\rVert_p\lVert A^{-1}\rVert_p,\qquad
+\operatorname{rcond}_p(A)=\kappa_p(A)^{-1}.
+$$
+
+对于小型显式矩阵，Julia 的 `cond(A, p)` 可计算 $p=1,2,\infty$ 的条件数；$p=2$ 路线依赖奇异值信息，适合诊断而不应成为大型问题的默认前置计算[[1](#ref-1)]。
+
+对于已经选择直接分解的中型问题，条件诊断应尽量作为分解的副产物取得。LAPACK 的 `gesvx!` 可返回倒数条件数 `rcond`、前向误差界 `ferr`、后向误差界 `berr` 和主元增长信息；`gecon!` 可在已有 LU 分解上估计一范数或无穷范数的倒数条件数[[1](#ref-1)]。稀疏直接后端只有在实际暴露此类诊断时才记录它，不能假设每个后端都能低成本给出可靠估计。
+
+对于大型 SPD 系统，可从 Lanczos 或 CG 过程中得到 Ritz 值并估计谱区间，从而给出条件数趋势；这属于运行时诊断，不是严格证书。对于一般矩阵，可通过一范数逆估计器配合 $A$ 与 $A^\ast$ 的求解估计 $\lVert A^{-1}\rVert_1$，但它本身需要额外求解，因而只应在诊断预算明确允许时使用。矩阵自由的一般非正规系统不存在同时廉价、可靠且通用的完整条件数前置估计。
+
+当条件信息未知时，`unknown` 不等于 `ill-conditioned`。路由器采用以下保守策略：
+
+- 小型问题先选有主元的直接法，验收后向误差并记录可取得的条件诊断；若秩亏、误差或主元增长可疑，回退到 QR 或 SVD。
+- 中型稀疏问题根据 fill-in 风险、右端项复用和内存预算选择直接法或预条件 Krylov；用短预算迭代的残差下降率决定是否重建预条件器或切换路线。
+- 大型或矩阵自由问题按严格结构资格选择 Krylov 法与预条件器，不先计算完整条件数；持续监控残差、停滞、breakdown、预条件器代价和内存。
+
+这与 `LinearSolve.jl` 接受调用方提供算子条件假设的思想一致，但本项目保留数值、范数、作用算子和证据等级，避免把单一的“良态/病态”标签误用于不匹配的路线[[6](#ref-6)]。
 
 ## 4. 受控自适应
 
@@ -129,3 +177,5 @@ $$
 [4]. <a id="ref-4"></a> JuliaLinearAlgebra. 2026. [*Algebraic Multigrid in Julia*](https://github.com/JuliaLinearAlgebra/AlgebraicMultigrid.jl). GitHub repository.<br>
 
 [5]. <a id="ref-5"></a> JuliaSmoothOptimizers. 2026. [*Reference*](https://jso.dev/Krylov.jl/dev/interfaces/reference/). Krylov.jl Documentation.<br>
+
+[6]. <a id="ref-6"></a> SciML. 2026. [*Linear Solve Operator Assumptions*](https://docs.sciml.ai/LinearSolve/v2.30/basics/OperatorAssumptions/). LinearSolve.jl Documentation.<br>

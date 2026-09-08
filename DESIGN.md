@@ -20,6 +20,7 @@
 | PETSc | Portable, Extensible Toolkit for Scientific Computation，可移植可扩展科学计算工具包 |
 | MPI | Message Passing Interface，消息传递接口 |
 | GPU | Graphics Processing Unit，图形处理器 |
+| rcond | Reciprocal Condition Number，倒数条件数 |
 
 ## 1. 设计原则
 
@@ -47,6 +48,20 @@ end
 ```
 
 `AdaptiveLinearProblem` 不直接包装某个后端的问题对象。它保留原始线性算子、右端项、初值、数学契约和缓存键；执行时再映射到 Julia 标准库、Krylov 或 `LinearSolve.jl`。
+
+条件信息是数学契约的可选字段，而不是每次调用都触发的前置计算：
+
+```julia
+struct ConditioningInfo{T}
+    value::Union{Nothing,T}
+    metric::Symbol          # :kappa_1, :kappa_2, :kappa_inf, :rcond
+    operator::Symbol        # :original, :left_preconditioned, :right_preconditioned
+    evidence::Symbol        # :exact, :estimated, :external, :qualitative
+    matrix_version
+end
+```
+
+`ConditioningPolicy` 控制是否使用输入、是否允许 `:cheap` 或 `:full` 估计，以及诊断预算。计划器只采用与当前矩阵版本、范数和候选预条件形式匹配的条件信息；规模分类则由内存、时间、右端项复用和稀疏 fill-in 风险共同决定。完整语义、估计方法与未知条件数时的路线见[理论基础的规模、资源与条件信息章节](THEORY.md#scale-and-conditioning)。
 
 ## 3. 分层路线覆盖
 
@@ -134,7 +149,7 @@ inspect(problem)
   -> emit(certificate)
 ```
 
-路由器不应以完整条件数作为大规模问题的常规前置计算。对迭代法，执行监控应使用残差下降率、停滞、breakdown、内存、时间预算和预条件器构造成本。
+路由器不应以完整条件数作为大规模问题的常规前置计算，但必须接受版本匹配的外部条件信息，并在诊断预算允许时执行按需估计。对迭代法，执行监控应使用残差下降率、停滞、breakdown、内存、时间预算和预条件器构造成本；具体路线规则见[理论基础的规模、资源与条件信息章节](THEORY.md#scale-and-conditioning)。
 
 预条件器只有在同一次 `solve(A, b)` 内保持固定线性算子时，才可选择 GMRES；若其在迭代中变化、是非线性的，或该性质未知，规划器必须选择 FGMRES。能力模型通过 `fixed_within_solve` 与 `linear_within_solve` 表达该条件；数学理由、适用边界和例外见[理论基础的固定与可变预条件器章节](THEORY.md#fixed-and-variable-preconditioners)。
 

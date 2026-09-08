@@ -31,20 +31,29 @@ Base.@kwdef struct ConditioningInfo
     reliable::Bool = false
 end
 
+"""Mathematical semantics of a preconditioner supplied by the caller."""
+Base.@kwdef struct PreconditionerContract
+    name::Symbol = :none
+    fixed_within_solve::PropertyEvidence = PropertyEvidence()
+    linear_within_solve::PropertyEvidence = PropertyEvidence()
+end
+
 """A linear system plus optional mathematical and operational evidence."""
-Base.@kwdef struct AdaptiveLinearProblem{TA, TB, TC, TI}
+Base.@kwdef struct AdaptiveLinearProblem{TA, TB, TC, TI, TP}
     A::TA
     b::TB
     contract::TC = MathematicalContract()
     conditioning::TI = nothing
+    preconditioner::TP = nothing
     label::Symbol = :anonymous
 end
 
 function AdaptiveLinearProblem(A, b;
         contract::MathematicalContract=MathematicalContract(),
         conditioning::Union{Nothing, ConditioningInfo}=nothing,
+        preconditioner::Union{Nothing, PreconditionerContract}=nothing,
         label::Symbol=:anonymous)
-    return AdaptiveLinearProblem(A, b, contract, conditioning, label)
+    return AdaptiveLinearProblem(A, b, contract, conditioning, preconditioner, label)
 end
 
 @enum SolveStatus begin

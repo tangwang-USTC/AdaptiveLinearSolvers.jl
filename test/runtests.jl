@@ -45,6 +45,20 @@ using AdaptiveLinearSolvers
     rank_plan = plan(AdaptiveLinearProblem(rank_deficient, [1.0, 0.0]; contract=rank_contract))
     @test first(rank_plan.execution_routes) == :svd
 
+    fixed_preconditioner = PreconditionerContract(
+        name=:ilu,
+        fixed_within_solve=PropertyEvidence(Certified; source=:caller),
+        linear_within_solve=PropertyEvidence(Certified; source=:caller),
+    )
+    variable_preconditioner = PreconditionerContract(name=:adaptive_ilu)
+    fixed_problem = AdaptiveLinearProblem(A, b; contract=contract, preconditioner=fixed_preconditioner)
+    variable_problem = AdaptiveLinearProblem(A, b; contract=contract, preconditioner=variable_preconditioner)
+    @test qualify_iterative(fixed_problem, :cg).eligible
+    @test qualify_iterative(fixed_problem, :gmres).eligible
+    @test qualify_iterative(variable_problem, :gmres).reason == :variable_or_unknown_preconditioner_requires_fgmres
+    @test qualify_iterative(variable_problem, :fgmres).eligible
+    @test !qualify_iterative(AdaptiveLinearProblem(A, b), :minres).eligible
+
     history = HistoryStore(1)
     telemetry = TelemetryPolicy(level=:fingerprint,
         output=OutputRequest(route=true, residual_ratio=true), emit_on=(:success,))

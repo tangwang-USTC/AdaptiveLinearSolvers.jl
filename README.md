@@ -87,3 +87,7 @@ Pkg.develop(path=raw"E:\juliapackaages\tools\linearsolve")
 ```powershell
 julia --project=. -e 'using Pkg; Pkg.test()'
 ```
+
+## License
+
+This project is released under the [MIT License](LICENSE).

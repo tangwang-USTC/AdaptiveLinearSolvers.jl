@@ -1,3 +1,11 @@
+"""
+    solve(A, b; kwargs...)
+
+Public convenience entry point for an explicit linear system. Keyword arguments are
+forwarded unchanged to the contract-aware `solve(problem; ...)` implementation below.
+"""
+solve(A, b; kwargs...) = solve(AdaptiveLinearProblem(A, b); kwargs...)
+
 _is_square(A) = size(A, 1) == size(A, 2)
 
 function _qualified(route::Symbol, problem::AdaptiveLinearProblem)
@@ -142,5 +150,3 @@ function solve(problem::AdaptiveLinearProblem;
     return AdaptiveLinearSolution(nothing, NumericalFailure, nothing, nothing,
         certificate, nothing, nothing)
 end
-
-solve(A, b; kwargs...) = solve(AdaptiveLinearProblem(A, b); kwargs...)

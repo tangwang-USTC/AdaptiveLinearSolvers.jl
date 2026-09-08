@@ -12,7 +12,7 @@ function _solve_route(route::Symbol, A, b)
     route == :cholesky && return cholesky(Hermitian(A)) \ b
     route == :qr && return qr(A) \ b
     route == :svd && return svd(A) \ b
-    throw(ArgumentError("route $route is not implemented in v0.0.1"))
+    throw(ArgumentError("route $route is not implemented in v0.0.2"))
 end
 
 function _residual_metrics(A, x, b, policy::ResidualPolicy)
@@ -63,7 +63,7 @@ end
     solve(problem; policy=RoutePolicy(), residual_policy=ResidualPolicy(), telemetry=TelemetryPolicy(), history=nothing)
 
 Solve an explicit dense or sparse linear system with a mathematically qualified direct route.
-Version 0.0.1 deliberately does not infer symmetry or positive definiteness from samples.
+Version 0.0.2 deliberately does not infer symmetry or positive definiteness from samples.
 """
 function solve(problem::AdaptiveLinearProblem;
         policy::RoutePolicy=RoutePolicy(), residual_policy::ResidualPolicy=ResidualPolicy(),

@@ -147,7 +147,7 @@ end
 """
     plan(problem, policy=RoutePolicy())
 
-Build a route plan without executing numerical kernels. In version 0.0.1 only the
+Build a route plan without executing numerical kernels. In version 0.0.2 only the
 direct family is executable; requests that lock an unavailable iterative or
 preconditioner layer produce an empty executable route list and an explicit decision.
 """

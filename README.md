@@ -48,17 +48,17 @@ benchmarks/          受版本控制的数学基准定义
 
 ## 当前状态
 
-`0.0.1` 是当前全部初始能力的归并基线：显式稠密/稀疏矩阵的直接路线、数学契约资格门、分层路线控制、可选条件数证据，以及默认关闭的 `off`、`basic`、`fingerprint` 遥测。
+`0.0.2` 是当前发布基线：显式稠密/稀疏矩阵的直接路线、数学契约资格门、分层路线控制、可选条件数证据，以及默认关闭的 `off`、`basic`、`fingerprint` 遥测。
 
 这一阶段刻意未实现 Krylov 迭代法、预条件器、矩阵无显式表示、GPU、MPI 或外部后端；未实现的路线会明确拒绝，而不会伪装为可用能力。
 
-`0.0.1` 包含 `SolveStatus`、`ResidualPolicy` 和按需 `RouteCertificate`。只有在 `TelemetryPolicy(level=:basic, output=OutputRequest(certificate=true))` 或指纹模式中明确请求时，才生成路线证书；默认 `off` 不记录证书。零右端项不计算未定义的相对残差，只以绝对残差验收。
+`0.0.2` 包含 `SolveStatus`、`ResidualPolicy` 和按需 `RouteCertificate`。只有在 `TelemetryPolicy(level=:basic, output=OutputRequest(certificate=true))` 或指纹模式中明确请求时，才生成路线证书；默认 `off` 不记录证书。零右端项不计算未定义的相对残差，只以绝对残差验收。
 
 包入口为 `src/AdaptiveLinearSolvers.jl`。测试已写入 `test/runtests.jl`；本次仅建立代码，尚未执行测试。
 
-当前工作树正在 `0.0.1` 基线上开发未发布的规划批次：`plan(problem, policy)` 只生成路线计划，不执行数值内核。它将方法族、直接方法、迭代方法、预条件器和回退策略分层判定；当前仅直接方法层可执行。
+`0.0.2` 的 `plan(problem, policy)` 只生成路线计划，不执行数值内核。它将方法族、直接方法、迭代方法、预条件器和回退策略分层判定；当前仅直接方法层可执行。
 
-当前未发布的下一批次还增加了 `qualify_iterative(problem, method)`：它只判定迭代方法的数学资格，尚不执行迭代。`plan(...)` 已将合格迭代路线列入 `planned_routes`，并用 `unavailable_routes` 明确标记其尚无执行后端。它对 CG（Conjugate Gradient，共轭梯度法）、MINRES（Minimum Residual，最小残量法）、GMRES（Generalized Minimal Residual，广义最小残量法）、FGMRES（Flexible Generalized Minimal Residual，柔性广义最小残量法）和 BiCGStab（Biconjugate Gradient Stabilized，稳定化双共轭梯度法）建模；可变或非线性预条件器会拒绝 GMRES 并将 FGMRES 置为优先合格候选。
+`0.0.2` 还增加了 `qualify_iterative(problem, method)`：它只判定迭代方法的数学资格，尚不执行迭代。`plan(...)` 已将合格迭代路线列入 `planned_routes`，并用 `unavailable_routes` 明确标记其尚无执行后端。它对 CG（Conjugate Gradient，共轭梯度法）、MINRES（Minimum Residual，最小残量法）、GMRES（Generalized Minimal Residual，广义最小残量法）、FGMRES（Flexible Generalized Minimal Residual，柔性广义最小残量法）和 BiCGStab（Biconjugate Gradient Stabilized，稳定化双共轭梯度法）建模；可变或非线性预条件器会拒绝 GMRES 并将 FGMRES 置为优先合格候选。详细发布说明见 [v0.0.2](docs/releases/v0.0.2.md)。
 
 ## 本地使用与测试
 

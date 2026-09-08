@@ -15,7 +15,7 @@ Base.@kwdef struct FingerprintProfile
     execution::Bool = true
 end
 
-"""Telemetry is off by default. Version 0.0.1 supports only `:off`, `:basic`, and `:fingerprint`."""
+"""Telemetry is off by default. Version 0.0.2 supports only `:off`, `:basic`, and `:fingerprint`."""
 Base.@kwdef struct TelemetryPolicy
     level::Symbol = :off
     output::OutputRequest = OutputRequest()
@@ -25,7 +25,7 @@ end
 
 function _validate_telemetry(policy::TelemetryPolicy)
     policy.level in (:off, :basic, :fingerprint) ||
-        throw(ArgumentError("telemetry level $(policy.level) is planned after v0.0.1; use :off, :basic, or :fingerprint"))
+        throw(ArgumentError("telemetry level $(policy.level) is planned after v0.0.2; use :off, :basic, or :fingerprint"))
     return policy
 end
 

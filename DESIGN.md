@@ -168,27 +168,27 @@ inspect(problem)
 
 `HistoryStore` 只接收 `fingerprint` 及以上级别、且同时满足 `emit_on` 事件条件的 `SolveRecord`，并按 `family_key` 与标签指纹检索相似历史。它只能向计划器提供候选路线的排序分数、预条件器复用提示和诊断建议；资格门、用户 `Lock`/`Forbid` 和当前预算仍具有更高优先级。初始实现使用容量受限的内存存储，避免在默认求解路径中写入大型原始数据。
 
-## 9. `0.0.1` 实施边界
+## 9. `0.0.2` 实施边界
 
 首个 Julia 实现仅覆盖显式稠密和稀疏矩阵的直接路线：通用反斜杠、`LU`（Lower-Upper）分解、Cholesky 分解、`QR`（Orthogonal-Triangular）分解与 `SVD`（Singular Value Decomposition，奇异值分解）。自动路线只有在调用方以 `Certified` 或 `Proved` 给出 Hermitian 正定证据时才选 Cholesky；它不会从矩阵元素抽样推断该资格。
 
-`RoutePolicy` 的 `family`、`direct`、`iterative`、`preconditioner` 与 `fallback` 均接受 `Auto`、`Prefer`、`Lock` 或 `Forbid`，因此可以只锁定一个层级，其余层级继续保持自动。`0.0.1` 会对未实现的迭代、预条件和回退路线显式报错。
+`RoutePolicy` 的 `family`、`direct`、`iterative`、`preconditioner` 与 `fallback` 均接受 `Auto`、`Prefer`、`Lock` 或 `Forbid`，因此可以只锁定一个层级，其余层级继续保持自动。`0.0.2` 会将未实现的迭代路线标记为不可执行，而不会将其交给直接执行器。
 
-实现支持 `off`、`basic` 与 `fingerprint` 遥测；`trace`、`diagnostic`、跨进程历史库和基于历史的重排序留待后续阶段。`HistoryStore` 仅在指纹模式且事件匹配时写入容量受限的内存记录。`0.0.1` 用 `SolveStatus` 区分成功、回退成功、资格拒绝、数值失败与预留的预算终止；`RouteCertificate` 仅在调用方显式请求时保存候选路线、资格证据、尝试历史、回退原因和残差验收信息。
+实现支持 `off`、`basic` 与 `fingerprint` 遥测；`trace`、`diagnostic`、跨进程历史库和基于历史的重排序留待后续阶段。`HistoryStore` 仅在指纹模式且事件匹配时写入容量受限的内存记录。`0.0.2` 用 `SolveStatus` 区分成功、回退成功、资格拒绝、数值失败与预留的预算终止；`RouteCertificate` 仅在调用方显式请求时保存候选路线、资格证据、尝试历史、回退原因和残差验收信息。
 
-## 10. 未发布规划批次
+## 10. `0.0.2` 规划批次
 
 当前开发批次将规划与执行分离。`plan(problem, policy)` 返回 `RoutePlan`，其中包含候选路线、逐路线 `EligibilityDecision`、各策略层的 `LayerDecision` 和可执行路线顺序；该函数不得分解矩阵、申请求解工作区或计算残差。`solve` 只执行 `RoutePlan.execution_routes`，并将计划判定写入按需 `RouteCertificate`。
 
 在当前基线中，直接方法族及其 `direct` 层已可执行；`iterative`、`preconditioner` 与 `fallback` 层已进入独立判定模型，但尚无可执行能力。对这些层的 `Lock` 请求必须给出空计划和明确拒绝，对 `Prefer` 请求仅记录“当前不可用”并允许其他自动路线继续。只有该规划批次的测试、文档和验收条件整体完成后，才递增版本号。
 
-## 11. 未发布迭代资格批次
+## 11. `0.0.2` 迭代资格批次
 
 本批次先定义迭代法与预条件器的统一数学资格接口，不调用迭代内核。`PreconditionerContract` 记录预条件器是否在一次 `solve` 内固定，以及是否在线性意义下固定；`qualify_iterative(problem, method)` 返回可审计的 `IterativeQualification`。
 
 首批资格规则覆盖 CG（Conjugate Gradient，共轭梯度法）、MINRES（Minimum Residual，最小残量法）、GMRES（Generalized Minimal Residual，广义最小残量法）、FGMRES（Flexible Generalized Minimal Residual，柔性广义最小残量法）和 BiCGStab（Biconjugate Gradient Stabilized，稳定化双共轭梯度法）。CG 要求已认证 Hermitian 正定性，MINRES 要求已认证 Hermitian 性；对要求固定线性预条件器的方法，若调用方提供的预条件器在一次求解内可变、非线性或性质未知，资格判定必须拒绝并给出 `:variable_or_unknown_preconditioner_requires_fgmres`。FGMRES 为该情形的可行候选，但本批次不执行任何 Krylov 迭代。
 
-## 12. 未发布迭代路线规划批次
+## 12. `0.0.2` 迭代路线规划批次
 
 `RoutePlan` 将路线分为 `candidate_routes`、`planned_routes`、`execution_routes` 与 `unavailable_routes`。`planned_routes` 只表示数学资格通过；`execution_routes` 还要求当前存在可调用的数值后端；`unavailable_routes` 使调用方和审计记录能够区分“数学上正确但尚未实现”与“数学资格不满足”。
 

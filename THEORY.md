@@ -74,6 +74,34 @@ Julia 标准库提供 LU、Cholesky、Bunch-Kaufman、QR、SVD、稀疏分解与
 
 一个问题默认不应尝试超过主路线和两条回退路线。切换路线时必须保存每次尝试的参数、证据、停止原因与残差历史。
 
+<a id="fixed-and-variable-preconditioners"></a>
+### 4.1 固定与可变预条件器
+
+设右预条件系统为
+
+$$
+A M^{-1} y=b,\qquad x=M^{-1}y.
+$$
+
+GMRES 假定同一次线性求解的每一步均使用固定的线性预条件器 $M^{-1}$，并据此构造 Krylov 子空间。若第 $k$ 步实际使用 $M_k^{-1}$，固定预条件的 Arnoldi 关系不再成立；普通 GMRES 仍可能运行，但其标准残差最小化解释与收敛判据不再有保证。
+
+FGMRES 允许每步使用不同的预条件器。它保留
+
+$$
+z_k=M_k^{-1}v_k,
+$$
+
+并在由各个 $z_k$ 构成的搜索空间中执行残差最小化，因此适用于可变或非线性预条件器[[5](#ref-5)]。
+
+在一次 `solve(A, b)` 内出现下列情形时，规划器必须选择 FGMRES：
+
+- ILU 参数、稀疏因子或块近似在 Krylov 迭代期间重建。
+- AMG 层次、smoother 或粗网格求解器在 Krylov 迭代期间调整。
+- 预条件器由内层迭代法实现，且内层迭代次数或容差随外层残差变化。
+- 预条件器依赖当前外层 Krylov 向量，因而不是固定线性算子。
+
+预条件器只在不同时间步、不同 Newton 步或不同的 `solve(A, b)` 调用之间更新时，每次单独求解内部仍可将其视为固定；此时普通 GMRES 仍具有资格。能力模型应显式记录 `fixed_within_solve` 与 `linear_within_solve` 两个布尔性质；任一性质未知或为假时，保守地选择 FGMRES。
+
 ## 5. 正确性与验收
 
 数值成功至少要求报告：
@@ -99,3 +127,5 @@ Julia 标准库提供 LU、Cholesky、Bunch-Kaufman、QR、SVD、稀疏分解与
 [3]. <a id="ref-3"></a> SciML. 2026. [*Algorithm Selection Guide*](https://docs.sciml.ai/LinearSolve/dev/basics/algorithm_selection/). LinearSolve.jl Documentation.<br>
 
 [4]. <a id="ref-4"></a> JuliaLinearAlgebra. 2026. [*Algebraic Multigrid in Julia*](https://github.com/JuliaLinearAlgebra/AlgebraicMultigrid.jl). GitHub repository.<br>
+
+[5]. <a id="ref-5"></a> JuliaSmoothOptimizers. 2026. [*Reference*](https://jso.dev/Krylov.jl/dev/interfaces/reference/). Krylov.jl Documentation.<br>

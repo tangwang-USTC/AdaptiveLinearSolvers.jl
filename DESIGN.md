@@ -136,7 +136,7 @@ inspect(problem)
 
 路由器不应以完整条件数作为大规模问题的常规前置计算。对迭代法，执行监控应使用残差下降率、停滞、breakdown、内存、时间预算和预条件器构造成本。
 
-预条件器若在迭代中改变，规划器必须选择 FGMRES；此条件由能力模型表达，而不是依赖用户记忆。
+预条件器只有在同一次 `solve(A, b)` 内保持固定线性算子时，才可选择 GMRES；若其在迭代中变化、是非线性的，或该性质未知，规划器必须选择 FGMRES。能力模型通过 `fixed_within_solve` 与 `linear_within_solve` 表达该条件；数学理由、适用边界和例外见[理论基础的固定与可变预条件器章节](THEORY.md#fixed-and-variable-preconditioners)。
 
 ## 7. 缓存
 

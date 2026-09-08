@@ -14,4 +14,4 @@
 
 - 明确 FGMRES（Flexible Generalized Minimum Residual，柔性广义最小残量法）仅在同一次线性求解内预条件器可变、非线性或其固定性未知时替代 GMRES。
 - 将条件数定义为带范数、算子、证据和矩阵版本的可选输入；补充按规模的估计与未知条件信息路线。
-- 定义 `minimal`、`summary`、`trace` 与 `diagnostic` 四级遥测，以及受数学资格约束的历史建议机制。
+- 定义默认关闭的 `off`、`summary`、`trace` 与 `diagnostic` 四级遥测，以及由标签指纹和事件触发、受数学资格约束的历史建议机制。

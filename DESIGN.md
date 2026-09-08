@@ -65,7 +65,8 @@ end
 
 ```julia
 struct TelemetryPolicy{S,K}
-    level::Symbol               # :minimal, :summary, :trace, :diagnostic
+    level::Symbol               # :off, :summary, :trace, :diagnostic
+    emit_on
     sample_every::Int
     capture_true_residual::Bool
     history_store::S
@@ -73,7 +74,7 @@ struct TelemetryPolicy{S,K}
 end
 ```
 
-`RouteCertificate` 始终包含 `minimal` 级信息。`TelemetryPolicy(:summary, ...)` 是希望积累历史建议时的推荐默认值；`trace` 与 `diagnostic` 必须由调用方显式请求，并受时间、内存和额外算子应用预算约束。完整的输出语义、开销与历史安全边界见[理论基础的可观测性、历史与性能预算章节](THEORY.md#51-可观测性历史与性能预算)。
+默认 `TelemetryPolicy` 为 `level=:off, emit_on=()`。`AdaptiveLinearSolution` 仍返回解和轻量 `SolveStatus`，但 `RouteCertificate`、残差轨迹和 `HistoryStore` 写入均不生成。希望积累历史建议时，推荐显式设置 `level=:summary, emit_on=(:new_fingerprint, :failure, :fallback, :periodic)`；`trace` 与 `diagnostic` 必须由调用方显式请求，并受时间、内存和额外算子应用预算约束。完整的输出语义、标签指纹和历史安全边界见[理论基础的可观测性、历史与性能预算章节](THEORY.md#51-可观测性历史与性能预算)。
 
 ## 3. 分层路线覆盖
 
@@ -163,7 +164,7 @@ inspect(problem)
 
 路由器不应以完整条件数作为大规模问题的常规前置计算，但必须接受版本匹配的外部条件信息，并在诊断预算允许时执行按需估计。对迭代法，执行监控应使用残差下降率、停滞、breakdown、内存、时间预算和预条件器构造成本；具体路线规则见[理论基础的规模、资源与条件信息章节](THEORY.md#scale-and-conditioning)。
 
-`HistoryStore` 接收 `summary` 以上的 `SolveRecord`，并按 `family_key` 与问题指纹检索相似历史。它只能向计划器提供候选路线的排序分数、预条件器复用提示和诊断建议；资格门、用户 `Lock`/`Forbid` 和当前预算仍具有更高优先级。初始实现使用容量受限的内存存储，避免在默认求解路径中写入大型原始数据。
+`HistoryStore` 只接收同时满足遥测级别与 `emit_on` 事件条件的 `SolveRecord`，并按 `family_key` 与标签指纹检索相似历史。它只能向计划器提供候选路线的排序分数、预条件器复用提示和诊断建议；资格门、用户 `Lock`/`Forbid` 和当前预算仍具有更高优先级。初始实现使用容量受限的内存存储，避免在默认求解路径中写入大型原始数据。
 
 预条件器只有在同一次 `solve(A, b)` 内保持固定线性算子时，才可选择 GMRES；若其在迭代中变化、是非线性的，或该性质未知，规划器必须选择 FGMRES。能力模型通过 `fixed_within_solve` 与 `linear_within_solve` 表达该条件；数学理由、适用边界和例外见[理论基础的固定与可变预条件器章节](THEORY.md#fixed-and-variable-preconditioners)。
 

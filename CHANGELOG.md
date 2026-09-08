@@ -16,6 +16,7 @@
 - 增加可应用预条件器算子接口，将固定预条件器映射到 Krylov 左预条件器 `M`，将可变预条件器映射到 FGMRES 右预条件器 `N`。
 - 增加 `MatrixFreeOperator`，使未显式组装矩阵的线性作用可自动分流到 Krylov 路线。
 - 在理论文档中补充矩阵自由算子的定义、Vlasov-Fokker-Planck/Maxwell 例子与路线边界，并由设计文档链接引用。
+- 增加 `BlockLayout` 与 `BlockOperator`，保留多字段耦合结构并支持块内显式/矩阵自由算子组合。
 
 ## [0.0.1] - 2026-09-08
 

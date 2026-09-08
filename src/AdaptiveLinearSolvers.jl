@@ -18,7 +18,7 @@ export AdaptiveLinearProblem, AdaptiveLinearSolution, Auto, Prefer, Lock, Forbid
        Unknown, Suspected, Claimed, Certified, Proved, ConditioningInfo,
        PreconditionerContract, IterativeMethodCapability, IterativeQualification,
        iterative_capability, qualify_iterative,
-       MatrixFreeOperator,
+       MatrixFreeOperator, BlockLayout, BlockOperator, blockrange,
        SolveStatus, Success, FallbackSuccess, QualificationRejected,
        NumericalFailure, BudgetTerminated, ResidualPolicy, RouteCertificate,
        IterationControl, IterationReport,

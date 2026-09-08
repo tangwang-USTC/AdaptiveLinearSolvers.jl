@@ -118,8 +118,61 @@ $$
 - CG、MINRES、GMRES、FGMRES 和 BiCGStab 只需正向作用，但各自仍受 Hermitian 性、正定性和预条件器语义资格门约束。
 - 最小二乘、条件数一范数估计和涉及 $A^\ast$ 的路线还需要伴随作用 $z\mapsto\mathcal{A}^\ast z$；当前 `MatrixFreeOperator` 未声明此能力，因此不得自动选择这些路线。
 
+<a id="block-coupled-operators"></a>
+### 3.2 块耦合算子
+
+对多物理或多字段未知量，将全局向量按字段分块为
+
+$$
+x=
+\begin{bmatrix}
+x_1\\
+\vdots\\
+x_p
+\end{bmatrix},
+\qquad
+\mathcal{A}=
+\begin{bmatrix}
+\mathcal{A}_{11} & \cdots & \mathcal{A}_{1p}\\
+\vdots & \ddots & \vdots\\
+\mathcal{A}_{p1} & \cdots & \mathcal{A}_{pp}
+\end{bmatrix}.
+$$
+
+块耦合算子（block-coupled operator）定义其第 $i$ 个输出字段为
+
+$$
+y_i=\sum_{j=1}^{p}\mathcal{A}_{ij}x_j.
+$$
+
+每个子块 $\mathcal{A}_{ij}$ 可以是显式稠密矩阵、显式稀疏矩阵或矩阵自由算子。`BlockLayout` 只负责把 Krylov 所用的扁平向量映射到连续字段切片；`BlockOperator` 负责按上式累加子块作用。因此它保留字段边界，却不要求 Krylov 后端改用嵌套向量表示。
+
+**Vlasov-Fokker-Planck 高阶矩—Maxwell 例子。** 可取
+
+$$
+x=\begin{bmatrix}m\\E\\B\end{bmatrix},
+\qquad
+\mathcal{A}=
+\begin{bmatrix}
+\mathcal{A}_{mm} & \mathcal{A}_{mE} & \mathcal{A}_{mB}\\
+\mathcal{A}_{Em} & \mathcal{A}_{EE} & \mathcal{A}_{EB}\\
+\mathcal{A}_{Bm} & \mathcal{A}_{BE} & \mathcal{A}_{BB}
+\end{bmatrix},
+$$
+
+其中 $m$ 表示所选阶数的矩变量。对角块描述各字段自身的输运、碰撞或电磁离散；非对角块描述电流、洛伦兹力、旋度和本构耦合。实际块划分必须来自物理离散和边界条件，不能仅按变量名称猜测。
+
+块结构本身不证明对称性、正定性或可逆性，也不自动构成预条件器。整体 Krylov 路线仍按整个算子的数学契约判定。其价值在于为后续字段分裂、块三角近似和 Schur 补预条件器提供可审计的字段边界：例如消去 $m$ 后，场变量的形式 Schur 补为
+
+$$
+\mathcal{S}_{EB}=
+\mathcal{A}_{EB,EB}-\mathcal{A}_{EB,m}\mathcal{A}_{mm}^{-1}\mathcal{A}_{m,EB}.
+$$
+
+该表达只说明目标结构，不授权当前实现显式形成 $\mathcal{A}_{mm}^{-1}$ 或 $\mathcal{S}_{EB}$。
+
 <a id="scale-and-conditioning"></a>
-### 3.2 规模、资源与条件信息
+### 3.3 规模、资源与条件信息
 
 矩阵规模会改变路线的经济性，但不能单独决定路线。`small`、`medium` 和 `large` 应由 `RouteBudget` 的内存、时间、右端项数、稀疏模式和硬件能力共同定义，而不应在核心中写死单一维度阈值。
 

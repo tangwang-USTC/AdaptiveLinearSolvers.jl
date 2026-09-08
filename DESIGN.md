@@ -210,7 +210,13 @@ inspect(problem)
 
 `MatrixFreeOperator(rows, cols, apply!)` 只要求调用方实现原位线性作用 $y=Ax$，并提供 `size`、`mul!` 与向量乘法语义，因此无需显式组装稠密或稀疏矩阵即可交给 Krylov 后端。矩阵自由的数学定义、显式稀疏矩阵的区别、Vlasov-Fokker-Planck/Maxwell 例子、残差语义和伴随作用限制见[理论文档 3.1 节](THEORY.md#matrix-free-operators)。
 
-路由器对矩阵自由表示的 LU、Cholesky、QR 和 SVD 返回 `:matrix_free_direct_route_unavailable`；若调用方未锁定直接路线，且没有其他直接路线合格，规划器自动生成满足数学资格的迭代候选。当前接口尚未定义伴随作用 $A^\dagger x$、块算子、GPU、MPI 或分布式向量。
+路由器对矩阵自由表示的 LU、Cholesky、QR 和 SVD 返回 `:matrix_free_direct_route_unavailable`；若调用方未锁定直接路线，且没有其他直接路线合格，规划器自动生成满足数学资格的迭代候选。当前接口尚未定义伴随作用 $A^\dagger x$、GPU、MPI 或分布式向量。
+
+## 16. 未发布块耦合算子批次
+
+`BlockLayout` 将扁平 Krylov 向量划分为连续字段切片，`BlockOperator(layout, blocks)` 按块累加显式或矩阵自由子块作用。它既可表达 Vlasov-Fokker-Planck 高阶矩与 Maxwell 场的全耦合线性化，也不会要求后端改变向量存储格式。数学定义、字段耦合例子及其与 Schur 补/字段分裂的关系见[理论文档 3.2 节](THEORY.md#block-coupled-operators)。
+
+块算子当前仍作为矩阵自由整体路由到 Krylov；没有实现块三角、Schur 补、字段分裂预条件器或块伴随作用。后续任何物理预条件器必须显式声明所依赖的字段布局、近似和数学资格。
 
 预条件器只有在同一次 `solve(A, b)` 内保持固定线性算子时，才可选择 GMRES；若其在迭代中变化、是非线性的，或该性质未知，规划器必须选择 FGMRES。能力模型通过 `fixed_within_solve` 与 `linear_within_solve` 表达该条件；数学理由、适用边界和例外见[理论基础的固定与可变预条件器章节](THEORY.md#fixed-and-variable-preconditioners)。
 

@@ -15,6 +15,14 @@ function _solve_route(route::Symbol, A, b)
     throw(ArgumentError("route $route is not implemented in v0.0.2"))
 end
 
+function _execute_route(route::Symbol, problem::AdaptiveLinearProblem,
+        residual_policy::ResidualPolicy, iteration_control::IterationControl)
+    if iterative_capability(route) === nothing
+        return _solve_route(route, problem.A, problem.b), nothing
+    end
+    return _solve_krylov(route, problem.A, problem.b, residual_policy, iteration_control)
+end
+
 function _residual_metrics(A, x, b, policy::ResidualPolicy)
     residual_norm = Float64(norm(b - A * x))
     rhs_norm = Float64(norm(b))
@@ -60,17 +68,19 @@ function _telemetry(problem::AdaptiveLinearProblem, route::Symbol, residual_rati
 end
 
 """
-    solve(problem; policy=RoutePolicy(), residual_policy=ResidualPolicy(), telemetry=TelemetryPolicy(), history=nothing)
+    solve(problem; policy=RoutePolicy(), residual_policy=ResidualPolicy(), iteration_control=IterationControl(), telemetry=TelemetryPolicy(), history=nothing)
 
 Solve an explicit dense or sparse linear system with a mathematically qualified direct route.
 Version 0.0.2 deliberately does not infer symmetry or positive definiteness from samples.
 """
 function solve(problem::AdaptiveLinearProblem;
         policy::RoutePolicy=RoutePolicy(), residual_policy::ResidualPolicy=ResidualPolicy(),
+        iteration_control::IterationControl=IterationControl(),
         telemetry::TelemetryPolicy=TelemetryPolicy(),
         history::Union{Nothing, HistoryStore}=nothing)
     _validate_telemetry(telemetry)
     _validate_residual_policy(residual_policy)
+    _validate_iteration_control(iteration_control)
     route_plan = plan(problem, policy)
     isempty(route_plan.execution_routes) && begin
         notes = ["no permitted, implemented, and mathematically qualified route remains"]
@@ -78,29 +88,36 @@ function solve(problem::AdaptiveLinearProblem;
         certificate = _certificate(problem, telemetry, route_plan, Symbol[], nothing,
             :no_qualified_route, nothing, nothing, false, notes)
         return AdaptiveLinearSolution(nothing, QualificationRejected, nothing, nothing,
-            certificate, nothing, nothing)
+            certificate, nothing, nothing, nothing)
     end
 
     attempted = Symbol[]
     notes = String[]
+    terminal_status = NumericalFailure
     for route in route_plan.execution_routes
         push!(attempted, route)
         try
-            x = _solve_route(route, problem.A, problem.b)
+            x, iteration = _execute_route(route, problem, residual_policy, iteration_control)
             residual_norm, residual_ratio, accepted = _residual_metrics(problem.A, x, problem.b, residual_policy)
+            if iteration !== nothing && !iteration.converged
+                terminal_status = _iteration_failure_status(iteration, iteration_control)
+                push!(notes, "$route: $(iteration.backend_status)")
+                continue
+            end
             accepted || throw(ErrorException("residual acceptance failed"))
             status = length(attempted) == 1 ? Success : FallbackSuccess
             fallback_reason = status == FallbackSuccess ? :prior_route_failed : nothing
             certificate = _certificate(problem, telemetry, route_plan,
                 attempted, route, fallback_reason, residual_norm, residual_ratio, true, notes)
             telemetry_data, record = _telemetry(problem, route, residual_ratio, telemetry, history, status)
-            return AdaptiveLinearSolution(x, status, route, residual_ratio, certificate, telemetry_data, record)
+            return AdaptiveLinearSolution(x, status, route, residual_ratio, certificate,
+                iteration, telemetry_data, record)
         catch error
             push!(notes, "$route: $(sprint(showerror, error))")
         end
     end
     certificate = _certificate(problem, telemetry, route_plan,
         attempted, nothing, :all_routes_failed, nothing, nothing, false, notes)
-    return AdaptiveLinearSolution(nothing, NumericalFailure, nothing, nothing,
-        certificate, nothing, nothing)
+    return AdaptiveLinearSolution(nothing, terminal_status, nothing, nothing,
+        certificate, nothing, nothing, nothing)
 end

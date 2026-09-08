@@ -25,9 +25,17 @@ using AdaptiveLinearSolvers
     @test only(unqualified_plan.eligibility).reason == :hermitian_evidence_insufficient
 
     iterative_plan = plan(AdaptiveLinearProblem(A, b), RoutePolicy(iterative=Lock(:gmres)))
-    @test isempty(iterative_plan.execution_routes)
+    @test iterative_plan.execution_routes == [:gmres]
     @test iterative_plan.planned_routes == [:gmres]
-    @test iterative_plan.unavailable_routes == [:gmres]
+    @test isempty(iterative_plan.unavailable_routes)
+
+    gmres_result = solve(A, b;
+        policy=RoutePolicy(iterative=Lock(:gmres)),
+        iteration_control=IterationControl(max_iterations=20, record_history=true))
+    @test gmres_result.status == Success
+    @test gmres_result.route == :gmres
+    @test gmres_result.iteration.converged
+    @test gmres_result.iteration.iterations > 0
 
     generic = solve(A, b)
     @test generic.route == :lu
@@ -62,6 +70,12 @@ using AdaptiveLinearSolvers
     flexible_plan = plan(variable_problem, RoutePolicy(iterative=Prefer(:gmres)))
     @test flexible_plan.planned_routes[1] == :fgmres
     @test flexible_plan.unavailable_routes == [:fgmres]
+
+    fgmres_result = solve(A, b;
+        policy=RoutePolicy(iterative=Lock(:fgmres)),
+        iteration_control=IterationControl(max_iterations=20))
+    @test fgmres_result.status == Success
+    @test fgmres_result.iteration.method == :fgmres
 
     history = HistoryStore(1)
     telemetry = TelemetryPolicy(level=:fingerprint,

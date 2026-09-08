@@ -60,6 +60,8 @@ benchmarks/          受版本控制的数学基准定义
 
 `0.0.2` 还增加了 `qualify_iterative(problem, method)`：它只判定迭代方法的数学资格，尚不执行迭代。`plan(...)` 已将合格迭代路线列入 `planned_routes`，并用 `unavailable_routes` 明确标记其尚无执行后端。它对 CG（Conjugate Gradient，共轭梯度法）、MINRES（Minimum Residual，最小残量法）、GMRES（Generalized Minimal Residual，广义最小残量法）、FGMRES（Flexible Generalized Minimal Residual，柔性广义最小残量法）和 BiCGStab（Biconjugate Gradient Stabilized，稳定化双共轭梯度法）建模；可变或非线性预条件器会拒绝 GMRES 并将 FGMRES 置为优先合格候选。详细发布说明见 [v0.0.2](docs/releases/v0.0.2.md)。
 
+当前未发布工作树已接入 `Krylov.jl` 后端，可实际执行未带预条件器对象的 CG、MINRES、GMRES、FGMRES 与 BiCGStab。`IterationControl` 统一设置迭代数、时间和残差历史预算，`IterationReport` 返回收敛状态、迭代数、后端停止原因、耗时与可选残差历史。声明了实际预条件器需求的路线在预条件器应用接口完成前仍保持不可执行。
+
 ## 本地使用与测试
 
 在包尚未注册至 Julia General registry 前，不能使用 `Pkg.add("AdaptiveLinearSolvers")`。Julia 包管理器 `Pkg` 应以本地项目方式加载：

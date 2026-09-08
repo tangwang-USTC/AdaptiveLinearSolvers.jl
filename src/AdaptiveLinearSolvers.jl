@@ -2,10 +2,12 @@ module AdaptiveLinearSolvers
 
 using LinearAlgebra
 using SparseArrays
+using Krylov
 
 include("types.jl")
 include("policy.jl")
 include("iterative.jl")
+include("krylov_backend.jl")
 include("planning.jl")
 include("telemetry.jl")
 include("routing.jl")
@@ -17,6 +19,7 @@ export AdaptiveLinearProblem, AdaptiveLinearSolution, Auto, Prefer, Lock, Forbid
        iterative_capability, qualify_iterative,
        SolveStatus, Success, FallbackSuccess, QualificationRejected,
        NumericalFailure, BudgetTerminated, ResidualPolicy, RouteCertificate,
+       IterationControl, IterationReport,
        RouteCapability, EligibilityDecision, LayerDecision, RoutePlan, plan,
        TelemetryPolicy, OutputRequest, FingerprintProfile, MatrixFingerprint,
        HistoryStore, solve

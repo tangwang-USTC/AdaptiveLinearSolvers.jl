@@ -12,6 +12,7 @@
 - 将直接路线执行器改为只消费 `RoutePlan.execution_routes`，并扩展规划、稀疏、零右端项和秩亏测试。
 - 增加迭代法与预条件器数学资格接口，明确 GMRES 与 FGMRES 对可变预条件器的分流规则。
 - 将迭代资格接入规划结果，区分数学合格但尚无后端的 `unavailable_routes` 与实际可执行路线。
+- 接入 `Krylov.jl` 作为无预条件器 CG、MINRES、GMRES、FGMRES 与 BiCGStab 的执行后端，并返回统一的迭代报告和预算终止状态。
 
 ## [0.0.1] - 2026-09-08
 

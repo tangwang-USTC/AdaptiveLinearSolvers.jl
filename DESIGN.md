@@ -194,6 +194,12 @@ inspect(problem)
 
 当 `iterative=Lock(:gmres)` 时，规划器只保留 GMRES；若其预条件器语义不满足固定线性条件，则没有合格路线。当 `iterative=Prefer(:gmres)` 且预条件器可变、非线性或未知时，规划器保留 GMRES 的拒绝记录并将 FGMRES 放入合格计划。当前所有迭代路线仍属于 `unavailable_routes`；下一开发任务是接入首个可执行的迭代后端及其停止、失败和残差监控接口。
 
+## 13. 未发布 Krylov 执行批次
+
+本批次以 `Krylov.jl` 作为首个执行后端，接入 CG、MINRES、GMRES、FGMRES 与 BiCGStab。`IterationControl` 统一提供最大迭代数、墙钟时间、重启选项和残差历史记录开关；`IterationReport` 统一返回收敛标志、完成迭代数、后端状态文本、实际耗时和残差历史。`solve` 在后端未收敛且到达调用方迭代或时间上限时返回 `BudgetTerminated`，其余未收敛情形返回 `NumericalFailure`。
+
+该后端批次只执行无实际预条件器对象的迭代路线。`PreconditionerContract` 当前仍是数学语义与规划依据，而非可应用算子；若调用方传入非空预条件器契约，规划器必须将相应迭代路线保留在 `unavailable_routes`，不得省略预条件步骤后直接调用 Krylov 后端。下一批次才定义可应用预条件器接口，并将固定/可变语义映射到后端参数。
+
 预条件器只有在同一次 `solve(A, b)` 内保持固定线性算子时，才可选择 GMRES；若其在迭代中变化、是非线性的，或该性质未知，规划器必须选择 FGMRES。能力模型通过 `fixed_within_solve` 与 `linear_within_solve` 表达该条件；数学理由、适用边界和例外见[理论基础的固定与可变预条件器章节](THEORY.md#fixed-and-variable-preconditioners)。
 
 ## 7. 缓存

@@ -54,11 +54,11 @@ const _DIRECT_CAPABILITIES = (
 )
 
 const _ITERATIVE_CAPABILITIES = (
-    RouteCapability(:cg, :iterative, false),
-    RouteCapability(:minres, :iterative, false),
-    RouteCapability(:gmres, :iterative, false),
-    RouteCapability(:fgmres, :iterative, false),
-    RouteCapability(:bicgstab, :iterative, false),
+    RouteCapability(:cg, :iterative, true),
+    RouteCapability(:minres, :iterative, true),
+    RouteCapability(:gmres, :iterative, true),
+    RouteCapability(:fgmres, :iterative, true),
+    RouteCapability(:bicgstab, :iterative, true),
 )
 
 _routes(capabilities) = Symbol[capability.route for capability in capabilities]
@@ -191,8 +191,10 @@ function plan(problem::AdaptiveLinearProblem, policy::RoutePolicy=RoutePolicy())
         end
     end
     planned_routes = Symbol[decision.route for decision in eligibility if decision.eligible]
-    execution_routes = Symbol[route for route in planned_routes if route in direct_routes]
-    unavailable_routes = Symbol[route for route in planned_routes if route in iterative_routes]
+    iterative_backend_available = _iterative_backend_available(problem)
+    execution_routes = Symbol[route for route in planned_routes if
+        route in direct_routes || (route in iterative_routes && iterative_backend_available)]
+    unavailable_routes = Symbol[route for route in planned_routes if !(route in execution_routes)]
 
     preconditioner_locked = policy.preconditioner isa Lock
     fallback_locked = policy.fallback isa Lock

@@ -70,13 +70,22 @@ Base.@kwdef struct ResidualPolicy
     relative_tolerance::Float64 = sqrt(eps(Float64))
 end
 
+"""Backend-independent iteration and wall-clock limits for one Krylov solve."""
+Base.@kwdef struct IterationControl
+    max_iterations::Int = 0
+    max_seconds::Float64 = Inf
+    restart::Bool = false
+    record_history::Bool = false
+end
+
 """Result of one solve, including only telemetry enabled by the selected policy."""
-struct AdaptiveLinearSolution{TX, TC, TT, TH}
+struct AdaptiveLinearSolution{TX, TC, TI, TT, TH}
     x::TX
     status::SolveStatus
     route::Union{Nothing, Symbol}
     residual_ratio::Union{Nothing, Float64}
     certificate::TC
+    iteration::TI
     telemetry::TT
     history::TH
 end

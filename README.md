@@ -4,6 +4,17 @@
 
 项目的工作名称为 `AdaptiveLinearSolvers.jl`。在注册 Julia General registry 或创建 GitHub 远程仓库前，名称、UUID、许可证和组织归属仍可调整。
 
+## 术语与缩略词
+
+| 缩略词 | 首次定义 |
+|---|---|
+| CG | Conjugate Gradient，共轭梯度法 |
+| MINRES | Minimum Residual，最小残量法 |
+| AMG | Algebraic Multigrid，代数多重网格 |
+| ILU | Incomplete LU，不完全 LU 分解 |
+| PETSc | Portable, Extensible Toolkit for Scientific Computation，可移植可扩展科学计算工具包 |
+| GPU | Graphics Processing Unit，图形处理器 |
+
 ## 项目目标
 
 - 为稠密、稀疏、结构化和矩阵自由线性系统提供统一接口。

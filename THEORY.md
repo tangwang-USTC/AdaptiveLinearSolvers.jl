@@ -1,5 +1,25 @@
 # AdaptiveLinearSolvers.jl 理论基础
 
+## 术语与缩略词
+
+| 缩略词 | 首次定义 |
+|---|---|
+| LU | Lower-Upper factorization，下三角-上三角分解 |
+| QR | Orthogonal-Upper Triangular factorization，正交-上三角分解 |
+| SVD | Singular Value Decomposition，奇异值分解 |
+| SPD | Symmetric Positive Definite，对称正定 |
+| CG | Conjugate Gradient，共轭梯度法 |
+| LDL | Lower-Diagonal-Lower-Transpose factorization，下三角-对角-下三角转置分解 |
+| MINRES | Minimum Residual，最小残量法 |
+| QLP | QLP decomposition，QLP 分解 |
+| GMRES | Generalized Minimum Residual，广义最小残量法 |
+| FGMRES | Flexible Generalized Minimum Residual，柔性广义最小残量法 |
+| LSQR | Least-Squares QR，最小二乘 QR 法 |
+| LSMR | Least-Squares Minimum Residual，最小二乘最小残量法 |
+| AMG | Algebraic Multigrid，代数多重网格 |
+| PETSc | Portable, Extensible Toolkit for Scientific Computation，可移植可扩展科学计算工具包 |
+| GPU | Graphics Processing Unit，图形处理器 |
+
 ## 1. 范围与问题定义
 
 本项目处理线性问题

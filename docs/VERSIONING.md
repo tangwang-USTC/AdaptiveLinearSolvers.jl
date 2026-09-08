@@ -1,5 +1,12 @@
 # 版本、Git 与远程治理
 
+## 术语与缩略词
+
+| 缩略词 | 首次定义 |
+|---|---|
+| API | Application Programming Interface，应用程序编程接口 |
+| HTTPS | Hypertext Transfer Protocol Secure，安全超文本传输协议 |
+
 ## 1. 版本对象
 
 仓库中的理论文档、设计文档、源程序、测试、基准和说明文档属于同一个发布对象。每个 Git tag 固定一个完整、可重建的项目快照；文档不单独漂移为无法对应代码的“最新说明”。

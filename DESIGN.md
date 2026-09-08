@@ -1,5 +1,26 @@
 # AdaptiveLinearSolvers.jl 软件设计
 
+## 术语与缩略词
+
+| 缩略词 | 首次定义 |
+|---|---|
+| API | Application Programming Interface，应用程序编程接口 |
+| LU | Lower-Upper factorization，下三角-上三角分解 |
+| QR | Orthogonal-Upper Triangular factorization，正交-上三角分解 |
+| SVD | Singular Value Decomposition，奇异值分解 |
+| CG | Conjugate Gradient，共轭梯度法 |
+| MINRES | Minimum Residual，最小残量法 |
+| QLP | QLP decomposition，QLP 分解 |
+| GMRES | Generalized Minimum Residual，广义最小残量法 |
+| FGMRES | Flexible Generalized Minimum Residual，柔性广义最小残量法 |
+| LSQR | Least-Squares QR，最小二乘 QR 法 |
+| LSMR | Least-Squares Minimum Residual，最小二乘最小残量法 |
+| AMG | Algebraic Multigrid，代数多重网格 |
+| ILU | Incomplete LU，不完全 LU 分解 |
+| PETSc | Portable, Extensible Toolkit for Scientific Computation，可移植可扩展科学计算工具包 |
+| MPI | Message Passing Interface，消息传递接口 |
+| GPU | Graphics Processing Unit，图形处理器 |
+
 ## 1. 设计原则
 
 1. 数学核心不依赖物理领域语义。

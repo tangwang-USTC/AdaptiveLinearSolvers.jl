@@ -23,7 +23,7 @@ function _route_order(problem::AdaptiveLinearProblem, policy::RoutePolicy)
     forbidden = _forbidden_routes(policy)
     locked = _locked_route(policy)
     if locked !== nothing
-        locked in _SUPPORTED_ROUTES || throw(ArgumentError("route $locked is not implemented in v0.1.2"))
+        locked in _SUPPORTED_ROUTES || throw(ArgumentError("route $locked is not implemented in v0.0.1"))
         locked in forbidden && throw(ArgumentError("route $locked is both locked and forbidden"))
         _qualified(locked, problem) || throw(ArgumentError("locked route $locked is not mathematically qualified"))
         return (candidate_routes=Symbol[locked], qualified_routes=Symbol[locked])
@@ -39,7 +39,7 @@ function _route_order(problem::AdaptiveLinearProblem, policy::RoutePolicy)
         Symbol[:qr, :svd]
     end
     for route in _preferred_routes(policy)
-        route in _SUPPORTED_ROUTES || throw(ArgumentError("preferred route $route is not implemented in v0.1.2"))
+        route in _SUPPORTED_ROUTES || throw(ArgumentError("preferred route $route is not implemented in v0.0.1"))
         _qualified(route, problem) && !(route in default) && pushfirst!(default, route)
     end
     candidates = unique(default)
@@ -53,7 +53,7 @@ function _solve_route(route::Symbol, A, b)
     route == :cholesky && return cholesky(Hermitian(A)) \ b
     route == :qr && return qr(A) \ b
     route == :svd && return svd(A) \ b
-    throw(ArgumentError("route $route is not implemented in v0.1.2"))
+    throw(ArgumentError("route $route is not implemented in v0.0.1"))
 end
 
 function _residual_metrics(A, x, b, policy::ResidualPolicy)
@@ -102,7 +102,7 @@ end
     solve(problem; policy=RoutePolicy(), residual_policy=ResidualPolicy(), telemetry=TelemetryPolicy(), history=nothing)
 
 Solve an explicit dense or sparse linear system with a mathematically qualified direct route.
-Version 0.1.2 deliberately does not infer symmetry or positive definiteness from samples.
+Version 0.0.1 deliberately does not infer symmetry or positive definiteness from samples.
 """
 function solve(problem::AdaptiveLinearProblem;
         policy::RoutePolicy=RoutePolicy(), residual_policy::ResidualPolicy=ResidualPolicy(),

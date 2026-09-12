@@ -14,11 +14,21 @@
     history = HistoryStore(4)
     solve(A, b; telemetry=TelemetryPolicy(level=:fingerprint, fingerprint=profile),
         history=history)
-    advice = route_advice(history, problem, [:cholesky, :lu]; profile=profile)
+    evidence_policy = HistoryPolicy(min_samples=1)
+    advice = route_advice(history, problem, [:cholesky, :lu]; profile=profile,
+        history_policy=evidence_policy)
     @test advice.matching_records == 1
     @test advice.recommended_route == :lu
+    @test advice.selection_reason == :confidence_ranked
     @test advice.preconditioner_reuse == :not_applicable
-    @test first(plan(problem; history=history, fingerprint_profile=profile).execution_routes) == :lu
+    @test first(plan(problem; history=history, fingerprint_profile=profile,
+        history_policy=evidence_policy).execution_routes) == :lu
+
+    cautious = route_advice(history, problem, [:cholesky, :lu]; profile=profile)
+    @test cautious.recommended_route === nothing
+    exploring = route_advice(history, problem, [:cholesky, :lu]; profile=profile,
+        history_policy=HistoryPolicy(exploration=:least_tried))
+    @test exploring.selection_reason == :controlled_exploration
 
     traced = solve(A, b;
         policy=RoutePolicy(iterative=Lock(:gmres)),

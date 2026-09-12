@@ -6,7 +6,13 @@ struct IterationReport
     backend_status::String
     elapsed_seconds::Float64
     residual_history::Vector{Float64}
+    operator_applications::Union{Nothing, Int}
 end
+
+IterationReport(method::Symbol, iterations::Int, converged::Bool, backend_status::String,
+    elapsed_seconds::Float64, residual_history::Vector{Float64}) =
+    IterationReport(method, iterations, converged, backend_status, elapsed_seconds,
+        residual_history, nothing)
 
 function _validate_iteration_control(control::IterationControl)
     control.max_iterations >= 0 || throw(ArgumentError("max_iterations must be nonnegative"))

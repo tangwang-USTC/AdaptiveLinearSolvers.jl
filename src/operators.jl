@@ -1,5 +1,34 @@
 abstract type AbstractLinearOperator end
 
+"""Linear operator wrapper that counts applications and enforces an optional hard limit."""
+mutable struct CountingOperator{T, A} <: AbstractLinearOperator
+    source::A
+    applications::Int
+    limit::Int
+end
+
+function CountingOperator(source; limit::Integer=0)
+    limit >= 0 || throw(ArgumentError("operator application limit must be nonnegative"))
+    return CountingOperator{eltype(source), typeof(source)}(source, 0, Int(limit))
+end
+
+Base.size(operator::CountingOperator) = size(operator.source)
+Base.size(operator::CountingOperator, dimension::Integer) = size(operator.source, dimension)
+Base.eltype(::Type{CountingOperator{T, A}}) where {T, A} = T
+Base.eltype(operator::CountingOperator{T}) where {T} = T
+
+function LinearAlgebra.mul!(y::AbstractVector, operator::CountingOperator, x::AbstractVector)
+    operator.limit > 0 && operator.applications >= operator.limit &&
+        throw(OperatorApplicationBudgetExceeded(operator.limit))
+    operator.applications += 1
+    return LinearAlgebra.mul!(y, operator.source, x)
+end
+
+function Base.:*(operator::CountingOperator{T}, x::AbstractVector) where {T}
+    y = similar(x, promote_type(T, eltype(x)), size(operator, 1))
+    return LinearAlgebra.mul!(y, operator, x)
+end
+
 """Matrix-free linear operator defined by an in-place action `apply!(y, x)` for `y = A * x`."""
 struct MatrixFreeOperator{T, F} <: AbstractLinearOperator
     rows::Int

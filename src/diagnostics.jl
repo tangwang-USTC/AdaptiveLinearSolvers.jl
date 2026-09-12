@@ -5,6 +5,9 @@ const _CONDITIONING_EVIDENCE = (:exact, :estimated, :external, :qualitative)
 function _validate_conditioning_policy(policy::ConditioningPolicy)
     policy.estimation in (:none, :cheap, :full) ||
         throw(ArgumentError("conditioning estimation must be :none, :cheap, or :full"))
+    policy.spectral_estimation in (:none, :lanczos) ||
+        throw(ArgumentError("spectral_estimation must be :none or :lanczos"))
+    policy.spectral_steps > 0 || throw(ArgumentError("spectral_steps must be positive"))
     policy.budget.max_seconds >= 0 ||
         throw(ArgumentError("diagnostic max_seconds must be nonnegative"))
     policy.budget.max_operator_applications >= 0 ||
@@ -12,6 +15,67 @@ function _validate_conditioning_policy(policy::ConditioningPolicy)
     policy.budget.max_matrix_dimension >= 0 ||
         throw(ArgumentError("diagnostic max_matrix_dimension must be nonnegative"))
     return policy
+end
+
+function _lanczos_spectrum(problem::AdaptiveLinearProblem, policy::ConditioningPolicy)
+    policy.spectral_estimation == :none && return nothing, :spectral_estimation_disabled, 0.0
+    _certified_or_proved(problem.contract.hermitian) ||
+        return nothing, :hermitian_evidence_insufficient, 0.0
+    budget = policy.budget
+    budget.max_seconds > 0 || return nothing, :diagnostic_time_budget_not_granted, 0.0
+    budget.max_operator_applications > 0 ||
+        return nothing, :operator_application_budget_not_granted, 0.0
+    size(problem.A, 1) == size(problem.A, 2) || return nothing, :nonsquare_operator, 0.0
+    steps = min(policy.spectral_steps, budget.max_operator_applications, size(problem.A, 1))
+    steps > 0 || return nothing, :empty_spectral_budget, 0.0
+
+    T = try
+        promote_type(eltype(problem.A), Float64)
+    catch
+        Float64
+    end
+    q_previous = zeros(T, size(problem.A, 2))
+    q = ones(T, size(problem.A, 2))
+    q ./= norm(q)
+    work = similar(q)
+    diagonal = Float64[]
+    offdiagonal = Float64[]
+    beta_previous = 0.0
+    started = time_ns()
+    for step in 1:steps
+        mul!(work, problem.A, q)
+        alpha = Float64(real(dot(q, work)))
+        work .-= alpha .* q
+        step > 1 && (work .-= beta_previous .* q_previous)
+        beta = Float64(norm(work))
+        push!(diagonal, alpha)
+        if step == steps || beta <= sqrt(eps(Float64))
+            break
+        end
+        push!(offdiagonal, beta)
+        q_previous .= q
+        q .= work ./ beta
+        beta_previous = beta
+        elapsed = Float64(time_ns() - started) / 1.0e9
+        elapsed <= budget.max_seconds ||
+            return nothing, :diagnostic_time_budget_exceeded, elapsed
+    end
+    elapsed = Float64(time_ns() - started) / 1.0e9
+    elapsed <= budget.max_seconds || return nothing, :diagnostic_time_budget_exceeded, elapsed
+    values = eigvals(SymTridiagonal(diagonal, offdiagonal))
+    info = SpectralInfo(lambda_min=Float64(minimum(values)), lambda_max=Float64(maximum(values)),
+        method=:lanczos, operator=:original, matrix_version=problem.matrix_version,
+        source=:router_estimate, steps=length(diagonal), reliable=false)
+    return info, :estimated, elapsed
+end
+
+function _spectral_diagnostic_state(problem::AdaptiveLinearProblem,
+        information::Union{Nothing, SpectralInfo})
+    information === nothing && return :unavailable
+    _certified_or_proved(problem.contract.positive_definite) || return :estimated
+    scale = max(abs(information.lambda_max), 1.0)
+    information.lambda_min <= sqrt(eps(Float64)) * scale && return :near_singular
+    return :estimated
 end
 
 function _condition_number(info::ConditioningInfo)
@@ -106,8 +170,9 @@ function _preconditioner_diagnostic_state(problem::AdaptiveLinearProblem, iterat
 end
 
 function _overall_diagnostic_state(conditioning::ConditioningAssessment,
-        iteration_state::Symbol, preconditioner_state::Symbol, status)
+        spectral_state::Symbol, iteration_state::Symbol, preconditioner_state::Symbol, status)
     conditioning.state == :near_rank_deficient && return :near_rank_deficient
+    spectral_state == :near_singular && return :near_rank_deficient
     iteration_state == :breakdown && return :iterative_breakdown
     iteration_state == :stagnated && return :iterative_stagnation
     preconditioner_state == :suspected_failure && return :preconditioner_suspected_failure
@@ -139,10 +204,15 @@ function diagnose(problem::AdaptiveLinearProblem; policy::ConditioningPolicy=Con
             push!(notes, string(reason))
         end
     end
+    spectral, spectral_reason, spectral_elapsed = _lanczos_spectrum(problem, policy)
+    spectral_state = policy.spectral_estimation == :none ? :not_requested :
+        _spectral_diagnostic_state(problem, spectral)
+    elapsed += spectral_elapsed
+    policy.spectral_estimation != :none && push!(notes, string(spectral_reason))
     iteration_state = _iteration_diagnostic_state(iteration)
     preconditioner_state = _preconditioner_diagnostic_state(problem, iteration_state)
-    overall_state = _overall_diagnostic_state(assessment, iteration_state,
+    overall_state = _overall_diagnostic_state(assessment, spectral_state, iteration_state,
         preconditioner_state, status)
-    return NumericalDiagnosis(assessment, iteration_state, preconditioner_state,
+    return NumericalDiagnosis(assessment, spectral, spectral_state, iteration_state, preconditioner_state,
         overall_state, estimate_performed, elapsed, notes)
 end

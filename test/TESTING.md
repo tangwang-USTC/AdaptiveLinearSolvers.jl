@@ -10,8 +10,10 @@
 | `test/planning/` | 路线规划、数学资格与路线锁定 |
 | `test/krylov/` | GMRES 与 FGMRES 的执行报告 |
 | `test/preconditioner/` | 固定/可变预条件器的资格与分流 |
+| `test/preconditioner_builders/` | Jacobi 构造、版本缓存与实际 Krylov 使用 |
 | `test/operators/` | 矩阵自由与块耦合算子 |
 | `test/diagnostics/` | 条件信息版本、诊断预算与数值状态区分 |
+| `test/spectral/` | Hermitian 算子的预算化 Lanczos 谱诊断 |
 | `test/resources/` | 资源准入、预算终止与后端能力登记 |
 | `test/telemetry/` | 指纹、历史、证书与拒绝状态 |
 

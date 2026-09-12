@@ -17,11 +17,26 @@ end
 
 function _execute_route(route::Symbol, problem::AdaptiveLinearProblem,
         backend::BackendSelection, residual_policy::ResidualPolicy,
-        iteration_control::IterationControl)
+        iteration_control::IterationControl, resource_budget::ResourceBudget)
     if backend.name == :stdlib
         return _solve_route(route, problem.A, problem.b), nothing
     elseif backend.name == :krylov
-        return _solve_krylov(route, problem.A, problem.b, residual_policy,
+        operator = CountingOperator(problem.A; limit=resource_budget.max_operator_applications)
+        x, report = _solve_krylov(route, operator, problem.b, residual_policy,
+            iteration_control, problem.preconditioner)
+        report = IterationReport(report.method, report.iterations, report.converged,
+            report.backend_status, report.elapsed_seconds, report.residual_history,
+            operator.applications)
+        return x, report
+    elseif backend.name == :iterativesolvers
+        isfinite(resource_budget.max_seconds) &&
+            throw(ArgumentError("IterativeSolvers adapter does not support a hard time budget"))
+        return _solve_iterativesolvers(route, problem.A, problem.b, residual_policy,
+            iteration_control, problem.preconditioner)
+    elseif backend.name == :linearsolve
+        (isfinite(resource_budget.max_seconds) || resource_budget.max_operator_applications > 0) &&
+            throw(ArgumentError("LinearSolve adapter does not support hard time or operator budgets"))
+        return _solve_linearsolve(route, problem.A, problem.b, residual_policy,
             iteration_control, problem.preconditioner)
     end
     throw(ArgumentError("backend $(backend.name) cannot execute route $route"))
@@ -90,14 +105,16 @@ function solve(problem::AdaptiveLinearProblem;
         backend_policy::BackendPolicy=BackendPolicy(),
         conditioning_policy::ConditioningPolicy=ConditioningPolicy(),
         telemetry::TelemetryPolicy=TelemetryPolicy(),
-        history::Union{Nothing, HistoryStore}=nothing)
+        history::Union{Nothing, HistoryStore}=nothing,
+        history_policy::HistoryPolicy=HistoryPolicy())
     _validate_telemetry(telemetry)
     _validate_residual_policy(residual_policy)
     _validate_iteration_control(iteration_control)
     _validate_resource_budget(resource_budget)
     _validate_conditioning_policy(conditioning_policy)
     route_plan = plan(problem, policy; conditioning_policy=conditioning_policy,
-        history=history, fingerprint_profile=telemetry.fingerprint)
+        history=history, fingerprint_profile=telemetry.fingerprint,
+        history_policy=history_policy)
     isempty(route_plan.execution_routes) && begin
         notes = ["no permitted, implemented, and mathematically qualified route remains"]
         append!(notes, ["$(decision.layer): $(decision.reason)" for decision in route_plan.layer_decisions if !decision.accepted])
@@ -129,7 +146,7 @@ function solve(problem::AdaptiveLinearProblem;
             end
             effective_control = _budgeted_iteration_control(iteration_control, resource_budget)
             x, iteration = _execute_route(route, problem, backend, residual_policy,
-                effective_control)
+                effective_control, resource_budget)
             last_iteration = iteration
             residual_norm, residual_ratio, accepted = _residual_metrics(problem.A, x, problem.b, residual_policy)
             if iteration !== nothing && !iteration.converged
@@ -149,6 +166,7 @@ function solve(problem::AdaptiveLinearProblem;
             return AdaptiveLinearSolution(x, status, route, residual_ratio, certificate,
                 iteration, telemetry_data, record)
         catch error
+            error isa OperatorApplicationBudgetExceeded && (terminal_status = BudgetTerminated)
             push!(notes, "$route: $(sprint(showerror, error))")
         end
     end

@@ -6,9 +6,9 @@
 
 ## 历史建议
 
-`HistoryStore` 是容量受限的内存记录库。`similar_records` 只匹配当前指纹中启用的字段与相同的 `label`；`route_advice` 统计候选路线的历史成功率，并给出预条件器复用提示。
+`HistoryStore` 是容量受限的内存记录库。`similar_records` 只匹配当前指纹中启用的字段与相同的 `label`；`route_advice` 统计候选路线的历史成功率、Wilson 下置信界，并给出预条件器复用提示。`HistoryPolicy(min_samples=3)` 默认要求至少三次匹配尝试才按历史重排；因此一两次偶然成功不会改变自动路线。
 
-当 `plan` 或 `solve` 接收 `history` 时，建议只可重排已经通过资格门的自动路线。任何 `Lock` 或 `Prefer` 选择保持原有顺序；历史记录不能使未认证的 SPD 系统使用 CG，也不能使可变预条件器绕过 FGMRES。
+当 `plan` 或 `solve` 接收 `history` 时，建议只可重排已经通过资格门的自动路线。任何 `Lock` 或 `Prefer` 选择保持原有顺序；历史记录不能使未认证的 SPD 系统使用 CG，也不能使可变预条件器绕过 FGMRES。`HistoryPolicy(exploration=:least_tried)` 是唯一的内置探索模式：只有证据不足时才确定性选择最少尝试的合格候选。
 
 预条件器复用只返回 `:reuse_candidate`、`:no_reuse_evidence` 或 `:not_applicable`，不自动复用对象。实际缓存键、生命周期和物理模型版本仍由调用方控制。
 

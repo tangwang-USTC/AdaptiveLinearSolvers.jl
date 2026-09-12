@@ -54,6 +54,7 @@ const _DIRECT_CAPABILITIES = (
     RouteCapability(:lu, :direct, true),
     RouteCapability(:qr, :direct, true),
     RouteCapability(:svd, :direct, true),
+    RouteCapability(:direct, :direct, true),
 )
 
 const _ITERATIVE_CAPABILITIES = (
@@ -101,9 +102,9 @@ end
 function _direct_order(problem::AdaptiveLinearProblem, conditioning::ConditioningAssessment)
     if _certified_or_proved(problem.contract.rank_deficient) ||
        conditioning.state == :near_rank_deficient
-        return Symbol[:svd, :qr, :lu, :cholesky]
+        return Symbol[:svd, :qr, :lu, :cholesky, :direct]
     end
-    return Symbol[:cholesky, :lu, :qr, :svd]
+    return Symbol[:cholesky, :lu, :qr, :svd, :direct]
 end
 
 function _default_iterative_route(problem::AdaptiveLinearProblem, forbidden::Union{Nothing, Symbol}=nothing)
@@ -155,6 +156,8 @@ function _eligibility(route::Symbol, problem::AdaptiveLinearProblem)
         return EligibilityDecision(route, true, :qualified)
     elseif route in (:qr, :svd)
         return EligibilityDecision(route, true, :qualified)
+    elseif route == :direct
+        return EligibilityDecision(route, true, :qualified)
     end
     return EligibilityDecision(route, false, :unknown_route)
 end
@@ -168,7 +171,8 @@ conditioning data may affect ordering, but opt-in estimation is deferred to `dia
 function plan(problem::AdaptiveLinearProblem, policy::RoutePolicy=RoutePolicy();
         conditioning_policy::ConditioningPolicy=ConditioningPolicy(),
         history::Union{Nothing, HistoryStore}=nothing,
-        fingerprint_profile::FingerprintProfile=FingerprintProfile())
+        fingerprint_profile::FingerprintProfile=FingerprintProfile(),
+        history_policy::HistoryPolicy=HistoryPolicy())
     _validate_conditioning_policy(conditioning_policy)
     conditioning = assess_conditioning(problem, conditioning_policy)
     direct_routes = _routes(_DIRECT_CAPABILITIES)
@@ -228,7 +232,8 @@ function plan(problem::AdaptiveLinearProblem, policy::RoutePolicy=RoutePolicy();
 
     history_advice = history === nothing ? nothing :
         route_advice(history, problem, execution_routes;
-            profile=fingerprint_profile, conditioning_policy=conditioning_policy)
+            profile=fingerprint_profile, conditioning_policy=conditioning_policy,
+            history_policy=history_policy)
     execution_routes = _history_reorder(execution_routes, history_advice, policy)
 
     return RoutePlan(candidates, eligibility, planned_routes, execution_routes,

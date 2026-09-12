@@ -4,6 +4,26 @@
 
 ## [Unreleased]
 
+### Added
+
+- 新增 `:direct` 路线作为 `A\b` 通配后备直接求解器，在 `_DIRECT_CAPABILITIES`、`_direct_order` 和 `_eligibility` 中注册。
+- 新增对 IterativeSolvers.jl 后端 `reltol`/`abstol` 关键字参数的适配（替代已废弃的 `tol`）。
+- 显著扩展测试覆盖：直接路线中的 QR/SVD/:direct 求解验证（9 项）、稀疏 SPD 和稀疏矩形矩阵测试。
+- Krylov 求解验证（CG/MINRES/BiCGStab）及其迭代控制边界条件测试集（4 项边界测试）。
+- 单位预条件器构建与求解验收测试。
+- 新增 fallback 测试组：回退链成功、资格拒绝、预算终止、SPD 合约路由选择。
+- 规划层测试：QR Lock 孤立、组合 Lock/Prefer 策略、可变 PC → FGMRES 替代、family Lock + iterative Lock 空集。
+- 资源与边界值测试：自动后端选择、未知后端名、GPU 请求、全 `ResourceBudget` 默认值、无内存预算资源评估。
+
+### Fixed
+
+- 修正 `select_backend` 中 `:stdlib` 后端未注册 `:direct` 路线的问题（返回 `:no_implemented_backend_for_route`）。
+- 修正 IterativeSolvers.jl v0.9.4 `tol=` → `reltol=`/`abstol=` 的 API 变更。
+- 修正超定矩形方程组 QR 测试：改为构造列空间内真实解验证精确性。
+- 修正 fallback 测试中 `notes` 字段访问（默认 telemetry :off 时 `certificate=nothing`）。
+- 修正 `Prefer(:gmres)` + 可变预条件器组合策略断言：`planned_routes` 包含 FGMRES 及直接回退路线。
+- 修正 CUDA 后端测试断言：执行模式不匹配返回 `:no_implemented_backend_for_route` 而非 `:backend_adapter_not_implemented`。`
+
 ## [0.0.4] - 2026-09-08
 
 ### Added

@@ -170,6 +170,10 @@ inspect(problem)
 
 `ResourceBudget` 统一收紧时间、迭代、内存和算子应用预算；`BackendPolicy` 只可选择已登记且已实现的后端。当前标准库直接法与 `Krylov.jl` 仅支持串行 CPU；GPU、MPI、PETSc、LinearSolve.jl 与 IterativeSolvers.jl 作为未实现适配器显式登记，不能被自动选择。后端覆盖、资源准入和后续接入契约见[计算资源与后端](docs/BACKENDS.md)。
 
+`PreconditionerBuildPolicy`、`PreconditionerCache` 与 `build_preconditioner` 形成显式构造和版本键复用层；当前只实现 Jacobi 与恒等预条件器，并由 `with_preconditioner` 接入既有 Krylov 执行路径。缓存没有 `matrix_version` 时自动禁用，不得由相似指纹或历史成功替代数值版本匹配。构造器范围与 ILU、AMG、Schur、物理预条件器的后续接入边界见[预条件器构造与版本缓存](docs/PRECONDITIONERS.md)。
+
+`ConditioningPolicy(spectral_estimation=:lanczos)` 在时间与算子调用预算明确时，可对已认证 Hermitian 的显式或矩阵自由算子执行 Lanczos 谱区间诊断。该结果只进入 `NumericalDiagnosis`，不能反向建立 Hermitian/正定资格或替代外部条件信息。完整假设与解释边界见[大规模条件与谱诊断](docs/SPECTRAL_DIAGNOSTICS.md)。
+
 `HistoryStore` 只接收 `fingerprint` 及以上级别、且同时满足 `emit_on` 事件条件的 `SolveRecord`，并按 `family_key` 与标签指纹检索相似历史。它只能向计划器提供候选路线的排序分数、预条件器复用提示和诊断建议；资格门、用户 `Lock`/`Forbid` 和当前预算仍具有更高优先级。初始实现使用容量受限的内存存储，避免在默认求解路径中写入大型原始数据。
 
 ## 9. `0.0.3` 实施边界

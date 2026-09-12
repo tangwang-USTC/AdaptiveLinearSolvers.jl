@@ -6,7 +6,7 @@ using AdaptiveLinearSolvers
 include("test_support.jl")
 
 const DEFAULT_TEST_GROUPS = (
-    "direct", "planning", "krylov", "preconditioner", "operators", "diagnostics", "history", "resources", "telemetry",
+    "direct", "planning", "fallback", "krylov", "preconditioner", "preconditioner_builders", "operators", "diagnostics", "spectral", "history", "resources", "telemetry",
 )
 const VALID_TEST_TIERS = ("default", "nightly", "manual", "all")
 const TEST_TIER = get(ENV, "ALS_TEST_TIER", "default")

@@ -35,6 +35,18 @@ Base.@kwdef struct ConditioningInfo
     evidence::Symbol = :unspecified
 end
 
+"""Approximate spectral interval obtained under an explicit Hermitian-operator contract."""
+Base.@kwdef struct SpectralInfo
+    lambda_min::Union{Nothing, Float64} = nothing
+    lambda_max::Union{Nothing, Float64} = nothing
+    method::Symbol = :unknown
+    operator::Symbol = :original
+    matrix_version::Any = nothing
+    source::Symbol = :unspecified
+    steps::Int = 0
+    reliable::Bool = false
+end
+
 """Hard limits for opt-in numerical diagnostics; zero dimension means no estimate is permitted."""
 Base.@kwdef struct DiagnosticBudget
     max_seconds::Float64 = 0.0
@@ -47,6 +59,13 @@ Base.@kwdef struct TelemetryBudget
     max_trace_samples::Int = 0
     max_extra_operator_applications::Int = 0
     max_seconds::Float64 = 0.0
+end
+
+"""Statistical safeguards for history-based ranking; exploration is explicit and deterministic."""
+Base.@kwdef struct HistoryPolicy
+    min_samples::Int = 3
+    confidence_z::Float64 = 1.96
+    exploration::Symbol = :off
 end
 
 """Execution limits shared by route selection and backend invocation; zero integer limits mean no extra cap."""
@@ -87,12 +106,22 @@ struct ResourceAssessment
     estimated_memory_bytes::Union{Nothing, Int}
 end
 
+"""Raised internally when a counted iterative operator reaches its explicit call limit."""
+struct OperatorApplicationBudgetExceeded <: Exception
+    limit::Int
+end
+
+Base.showerror(io::IO, error::OperatorApplicationBudgetExceeded) =
+    print(io, "operator application budget exceeded (limit=$(error.limit))")
+
 """Policy for validating caller data and optionally estimating conditioning after route planning."""
 Base.@kwdef struct ConditioningPolicy
     use_external::Bool = true
     require_matching_version::Bool = true
     require_reliable_external::Bool = true
     estimation::Symbol = :none
+    spectral_estimation::Symbol = :none
+    spectral_steps::Int = 12
     budget::DiagnosticBudget = DiagnosticBudget()
 end
 
@@ -107,6 +136,8 @@ end
 """Separated numerical diagnosis; no state is silently promoted to a mathematical qualification."""
 struct NumericalDiagnosis
     conditioning::ConditioningAssessment
+    spectral::Union{Nothing, SpectralInfo}
+    spectral_state::Symbol
     iteration_state::Symbol
     preconditioner_state::Symbol
     overall_state::Symbol
@@ -123,6 +154,32 @@ Base.@kwdef struct PreconditionerContract
     linear_within_solve::PropertyEvidence = PropertyEvidence()
     hermitian::PropertyEvidence = PropertyEvidence()
     positive_definite::PropertyEvidence = PropertyEvidence()
+end
+
+"""Construction policy for preconditioners implemented by this package."""
+Base.@kwdef struct PreconditionerBuildPolicy
+    kind::Symbol = :jacobi
+    diagonal_tolerance::Float64 = sqrt(eps(Float64))
+    reuse::Bool = true
+end
+
+"""Bounded in-memory cache keyed by an explicit matrix version and construction policy."""
+mutable struct PreconditionerCache
+    capacity::Int
+    entries::Dict{Any, PreconditionerContract}
+    order::Vector{Any}
+end
+
+PreconditionerCache(capacity::Integer=16) =
+    PreconditionerCache(Int(capacity), Dict{Any, PreconditionerContract}(), Any[])
+
+"""Result of an explicit preconditioner build or cache reuse request."""
+struct PreconditionerBuildReport
+    contract::Union{Nothing, PreconditionerContract}
+    cache_key::Any
+    cache_hit::Bool
+    build_seconds::Float64
+    reason::Symbol
 end
 
 """A linear system plus optional mathematical and operational evidence."""

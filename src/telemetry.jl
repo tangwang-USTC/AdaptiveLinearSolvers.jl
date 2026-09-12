@@ -128,13 +128,35 @@ struct RouteAdvice
     matching_records::Int
     attempt_counts::Dict{Symbol, Int}
     success_counts::Dict{Symbol, Int}
+    lower_confidence::Dict{Symbol, Float64}
     recommended_route::Union{Nothing, Symbol}
+    selection_reason::Symbol
     preconditioner_reuse::Symbol
+end
+
+function _validate_history_policy(policy::HistoryPolicy)
+    policy.min_samples > 0 || throw(ArgumentError("history min_samples must be positive"))
+    policy.confidence_z >= 0 || throw(ArgumentError("history confidence_z must be nonnegative"))
+    policy.exploration in (:off, :least_tried) ||
+        throw(ArgumentError("history exploration must be :off or :least_tried"))
+    return policy
+end
+
+function _wilson_lower_bound(successes::Int, attempts::Int, z::Float64)
+    attempts == 0 && return 0.0
+    proportion = successes / attempts
+    z_squared = z^2
+    denominator = 1 + z_squared / attempts
+    center = proportion + z_squared / (2 * attempts)
+    radius = z * sqrt(proportion * (1 - proportion) / attempts + z_squared / (4 * attempts^2))
+    return max(0.0, (center - radius) / denominator)
 end
 
 function route_advice(store::HistoryStore, problem::AdaptiveLinearProblem,
         candidates::AbstractVector{Symbol}; profile::FingerprintProfile=FingerprintProfile(),
-        conditioning_policy::ConditioningPolicy=ConditioningPolicy())
+        conditioning_policy::ConditioningPolicy=ConditioningPolicy(),
+        history_policy::HistoryPolicy=HistoryPolicy())
+    _validate_history_policy(history_policy)
     query = fingerprint(problem; profile=profile, conditioning_policy=conditioning_policy)
     records = similar_records(store, query; label=problem.label)
     attempts = Dict{Symbol, Int}()
@@ -145,26 +167,31 @@ function route_advice(store::HistoryStore, problem::AdaptiveLinearProblem,
         record.status in (Success, FallbackSuccess) &&
             (successes[record.route] = get(successes, record.route, 0) + 1)
     end
+    confidence = Dict(route => _wilson_lower_bound(get(successes, route, 0),
+        get(attempts, route, 0), history_policy.confidence_z) for route in candidates)
     recommended = nothing
-    best_successes = -1
-    best_attempts = 1
+    best_confidence = -1.0
     for route in candidates
-        successes_for_route = get(successes, route, 0)
         attempts_for_route = get(attempts, route, 0)
-        if successes_for_route > 0 &&
-           (recommended === nothing || successes_for_route * best_attempts > best_successes * attempts_for_route ||
-            (successes_for_route * best_attempts == best_successes * attempts_for_route &&
-             successes_for_route > best_successes))
+        if attempts_for_route >= history_policy.min_samples &&
+           (recommended === nothing || confidence[route] > best_confidence)
             recommended = route
-            best_successes = successes_for_route
-            best_attempts = attempts_for_route
+            best_confidence = confidence[route]
         end
+    end
+    selection_reason = recommended === nothing ? :insufficient_evidence : :confidence_ranked
+    if recommended === nothing && history_policy.exploration == :least_tried && !isempty(candidates)
+        recommended = first(candidates)
+        for route in candidates
+            get(attempts, route, 0) < get(attempts, recommended, 0) && (recommended = route)
+        end
+        selection_reason = :controlled_exploration
     end
     preconditioner = problem.preconditioner
     preconditioner_name = preconditioner === nothing ? :none : preconditioner.name
     reusable = preconditioner_name != :none && any(record -> record.status in (Success, FallbackSuccess) &&
         hasproperty(record, :preconditioner) && record.preconditioner == preconditioner_name, records)
-    return RouteAdvice(length(records), attempts, successes, recommended,
+    return RouteAdvice(length(records), attempts, successes, confidence, recommended, selection_reason,
         preconditioner_name == :none ? :not_applicable :
         (reusable ? :reuse_candidate : :no_reuse_evidence))
 end

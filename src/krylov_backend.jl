@@ -52,6 +52,10 @@ function _solve_krylov(method::Symbol, A, b, residual_policy::ResidualPolicy,
         Krylov.fgmres(A, b; common..., preconditioner_keywords..., restart=control.restart)
     elseif method == :bicgstab
         Krylov.bicgstab(A, b; common..., preconditioner_keywords...)
+    elseif method == :lsqr
+        Krylov.lsqr(A, b; common..., preconditioner_keywords...)
+    elseif method == :lsmr
+        Krylov.lsmr(A, b; common..., preconditioner_keywords...)
     else
         throw(ArgumentError("Krylov backend has no implementation for route $method"))
     end

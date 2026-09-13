@@ -44,6 +44,45 @@
     @test bicgstab_result.route == :bicgstab
     @test bicgstab_result.iteration.converged
     @test isapprox(A * bicgstab_result.x, b; rtol=1e-6)
+
+    # LSQR 方阵求解
+    lsqr_result = solve(A, b;
+        policy=RoutePolicy(iterative=Lock(:lsqr)),
+        iteration_control=IterationControl(max_iterations=20, record_history=true))
+    @test lsqr_result.status == Success
+    @test lsqr_result.route == :lsqr
+    @test lsqr_result.iteration.converged
+    @test isapprox(A * lsqr_result.x, b; rtol=1e-12)
+
+    # LSMR 方阵求解
+    lsmr_result = solve(A, b;
+        policy=RoutePolicy(iterative=Lock(:lsmr)),
+        iteration_control=IterationControl(max_iterations=20, record_history=true))
+    @test lsmr_result.status == Success
+    @test lsmr_result.route == :lsmr
+    @test lsmr_result.iteration.converged
+    @test isapprox(A * lsmr_result.x, b; rtol=1e-12)
+
+    # LSQR 矩形最小二乘（构造精确解；使用固定矩阵确保良态）
+    rect_A = Float64[1 0 0 0 0; 0 2 0 0 0; 0 0 3 0 0; 0 0 0 4 0; 0 0 0 0 5; 1 1 1 0 0; 0 1 1 1 0; 0 0 1 1 1]
+    rect_x_true = Float64[1, 2, 3, 4, 5]
+    rect_b = rect_A * rect_x_true
+    lsqr_rect = solve(rect_A, rect_b;
+        policy=RoutePolicy(iterative=Lock(:lsqr)),
+        iteration_control=IterationControl(max_iterations=50, record_history=true),
+        residual_policy=ResidualPolicy(absolute_tolerance=1e-10, relative_tolerance=1e-10))
+    @test lsqr_rect.status == Success
+    @test lsqr_rect.route == :lsqr
+    @test isapprox(rect_x_true, lsqr_rect.x; rtol=1e-4)
+
+    # LSMR 矩形最小二乘
+    lsmr_rect = solve(rect_A, rect_b;
+        policy=RoutePolicy(iterative=Lock(:lsmr)),
+        iteration_control=IterationControl(max_iterations=50, record_history=true),
+        residual_policy=ResidualPolicy(absolute_tolerance=1e-10, relative_tolerance=1e-10))
+    @test lsmr_rect.status == Success
+    @test lsmr_rect.route == :lsmr
+    @test isapprox(rect_x_true, lsmr_rect.x; rtol=1e-4)
 end
 
 @testset "iteration control validation" begin

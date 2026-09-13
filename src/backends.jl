@@ -1,7 +1,7 @@
 const _BACKEND_CAPABILITIES = (
-    BackendCapability(:stdlib, :LinearAlgebra, Symbol[:direct, :cholesky, :lu, :qr, :svd],
+    BackendCapability(:stdlib, :LinearAlgebra, Symbol[:direct, :cholesky, :bunchkaufman, :lu, :qr, :svd],
         Symbol[:serial_cpu], true),
-    BackendCapability(:krylov, :Krylov, Symbol[:cg, :minres, :gmres, :fgmres, :bicgstab],
+    BackendCapability(:krylov, :Krylov, Symbol[:cg, :minres, :gmres, :fgmres, :bicgstab, :lsqr, :lsmr],
         Symbol[:serial_cpu], true),
     BackendCapability(:iterativesolvers, :IterativeSolvers,
         Symbol[:gmres], Symbol[:serial_cpu], true),
@@ -35,7 +35,7 @@ function _minimum_workspace_bytes(problem::AdaptiveLinearProblem, route::Symbol)
     catch
         8
     end
-    if route in (:cg, :minres, :gmres, :fgmres, :bicgstab)
+    if route in (:cg, :minres, :gmres, :fgmres, :bicgstab, :lsqr, :lsmr)
         return 6 * n * scalar_bytes
     elseif problem.A isa StridedMatrix
         multiplier = route == :svd ? 4 : 2

@@ -4,7 +4,16 @@
 
 ## [Unreleased]
 
-### Added
+### Added (Phase 0+1)
+
+### Added (Phase 2)
+
+- 新增 `:bunchkaufman` 直接路线：对称不定矩阵的 Bunch-Kaufman LDLt 分解（`bunchkaufman(Hermitian(A))`），填补 Cholesky（需 SPD）与 LU（通用但无视对称性）之间的数学资格间隙。Hermitian 非正定矩阵可直接求解。
+- 新增 `:lsqr` / `:lsmr` 迭代路线：最小二乘 Krylov 求解器（Krylov.jl），支持方形和矩形线性系统，无需 Hermitian/SPD 资格。通过 `Lock(:lsqr)` / `Lock(:lsmr)` 显式请求。
+- 为 `CountingOperator` 添加 `adjoint` 支持，使 Krylov.jl 双乘积方法（`A * v` + `A' * u`）可被框架适配。
+- 测试覆盖新增 19 项（Bunch-Kaufman 资格 + 求解验证、LSQR/LSMR 方形与矩形求解、矩形稠密 QR 改进测试），总通过数 178 → 197。
+
+### Fixed (Phase 0+1)
 
 - 新增 `:direct` 路线作为 `A\b` 通配后备直接求解器，在 `_DIRECT_CAPABILITIES`、`_direct_order` 和 `_eligibility` 中注册。
 - 新增对 IterativeSolvers.jl 后端 `reltol`/`abstol` 关键字参数的适配（替代已废弃的 `tol`）。

@@ -47,9 +47,10 @@
     @test sparse_spd_result.status == Success
     @test isapprox(sparse_spd * sparse_spd_result.x, sparse_b; rtol=1e-10)
 
-    # 稀疏矩形矩阵 → QR（b 在列空间内可精确求解）
+    # 稀疏矩形矩阵 → QR（b 在列空间内可精确求解；确保每列非零）
     rect_x_true = rand(5)
-    sparse_rect = sprand(8, 5, 0.4)
+    dense_rect = rand(8, 5)
+    sparse_rect = sparse(dense_rect)
     rect_b_exact = sparse_rect * rect_x_true
     rect_result = solve(sparse_rect, rect_b_exact;
         policy=RoutePolicy(direct=Lock(:qr)),
@@ -57,4 +58,27 @@
     @test rect_result.status == Success
     @test rect_result.route == :qr
     @test isapprox(rect_x_true, rect_result.x; rtol=1e-8)
+
+    # 对称不定矩阵 → Bunch-Kaufman（Hermitian 非 SPD）
+    sym_indef = [1.0 2.0; 2.0 1.0]  # 特征值 3, -1
+    sym_b = [1.0, 2.0]
+    hermitian_contract = MathematicalContract(
+        square=PropertyEvidence(Certified; source=:caller),
+        hermitian=PropertyEvidence(Certified; source=:caller))
+    bk_result = solve(AdaptiveLinearProblem(sym_indef, sym_b; contract=hermitian_contract);
+        policy=RoutePolicy(direct=Lock(:bunchkaufman)))
+    @test bk_result.status == Success
+    @test bk_result.route == :bunchkaufman
+    @test isapprox(sym_indef * bk_result.x, sym_b; rtol=1e-12)
+
+    # SPD 矩阵上 Bunch-Kaufman 也应当可用
+    spd_contract = standard_spd_contract()
+    bk_spd = solve(AdaptiveLinearProblem(A, b; contract=spd_contract);
+        policy=RoutePolicy(direct=Lock(:bunchkaufman)))
+    @test bk_spd.status == Success
+
+    # 非对称矩阵 → Bunch-Kaufman 拒绝（无 Hermitian 证据）
+    bk_reject = solve([1.0 2.0; 3.0 4.0], b;
+        policy=RoutePolicy(direct=Lock(:bunchkaufman)))
+    @test bk_reject.status == QualificationRejected
 end

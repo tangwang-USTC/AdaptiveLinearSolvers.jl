@@ -21,6 +21,8 @@ const _ITERATIVE_METHODS = Dict(
     :gmres => IterativeMethodCapability(:gmres, false, false, true, false),
     :fgmres => IterativeMethodCapability(:fgmres, false, false, false, true),
     :bicgstab => IterativeMethodCapability(:bicgstab, false, false, true, false),
+    :lsqr => IterativeMethodCapability(:lsqr, false, false, true, false),
+    :lsmr => IterativeMethodCapability(:lsmr, false, false, true, false),
 )
 
 iterative_capability(method::Symbol) = get(_ITERATIVE_METHODS, method, nothing)

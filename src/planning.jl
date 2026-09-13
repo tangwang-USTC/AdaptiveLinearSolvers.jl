@@ -51,6 +51,7 @@ end
 
 const _DIRECT_CAPABILITIES = (
     RouteCapability(:cholesky, :direct, true),
+    RouteCapability(:bunchkaufman, :direct, true),
     RouteCapability(:lu, :direct, true),
     RouteCapability(:qr, :direct, true),
     RouteCapability(:svd, :direct, true),
@@ -63,6 +64,8 @@ const _ITERATIVE_CAPABILITIES = (
     RouteCapability(:gmres, :iterative, true),
     RouteCapability(:fgmres, :iterative, true),
     RouteCapability(:bicgstab, :iterative, true),
+    RouteCapability(:lsqr, :iterative, true),
+    RouteCapability(:lsmr, :iterative, true),
 )
 
 _routes(capabilities) = Symbol[capability.route for capability in capabilities]
@@ -104,7 +107,7 @@ function _direct_order(problem::AdaptiveLinearProblem, conditioning::Conditionin
        conditioning.state == :near_rank_deficient
         return Symbol[:svd, :qr, :lu, :cholesky, :direct]
     end
-    return Symbol[:cholesky, :lu, :qr, :svd, :direct]
+    return Symbol[:cholesky, :bunchkaufman, :lu, :qr, :svd, :direct]
 end
 
 function _default_iterative_route(problem::AdaptiveLinearProblem, forbidden::Union{Nothing, Symbol}=nothing)
@@ -152,6 +155,11 @@ function _eligibility(route::Symbol, problem::AdaptiveLinearProblem)
         return EligibilityDecision(route, true, :qualified)
     elseif route == :lu
         _is_square(problem.A) || return EligibilityDecision(route, false, :nonsquare)
+        _certified_or_proved(contract.rank_deficient) && return EligibilityDecision(route, false, :known_rank_deficient)
+        return EligibilityDecision(route, true, :qualified)
+    elseif route == :bunchkaufman
+        _is_square(problem.A) || return EligibilityDecision(route, false, :nonsquare)
+        _certified_or_proved(contract.hermitian) || return EligibilityDecision(route, false, :hermitian_evidence_insufficient)
         _certified_or_proved(contract.rank_deficient) && return EligibilityDecision(route, false, :known_rank_deficient)
         return EligibilityDecision(route, true, :qualified)
     elseif route in (:qr, :svd)

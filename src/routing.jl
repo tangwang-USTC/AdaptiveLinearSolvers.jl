@@ -10,6 +10,7 @@ function _solve_route(route::Symbol, A, b)
     route == :direct && return A \ b
     route == :lu && return lu(A) \ b
     route == :cholesky && return cholesky(Hermitian(A)) \ b
+    route == :bunchkaufman && return bunchkaufman(Hermitian(A)) \ b
     route == :qr && return qr(A) \ b
     route == :svd && return svd(A) \ b
     throw(ArgumentError("route $route is not implemented in v0.0.4"))
@@ -21,12 +22,16 @@ function _execute_route(route::Symbol, problem::AdaptiveLinearProblem,
     if backend.name == :stdlib
         return _solve_route(route, problem.A, problem.b), nothing
     elseif backend.name == :krylov
-        operator = CountingOperator(problem.A; limit=resource_budget.max_operator_applications)
-        x, report = _solve_krylov(route, operator, problem.b, residual_policy,
+        # LSQR/LSMR use both forward and adjoint products; CountingOperator only
+        # supports forward counting. Pass the source matrix directly for these methods.
+        effective_A = route in (:lsqr, :lsmr) ? problem.A :
+            CountingOperator(problem.A; limit=resource_budget.max_operator_applications)
+        x, report = _solve_krylov(route, effective_A, problem.b, residual_policy,
             iteration_control, problem.preconditioner)
+        applications = effective_A isa CountingOperator ? effective_A.applications : 0
         report = IterationReport(report.method, report.iterations, report.converged,
             report.backend_status, report.elapsed_seconds, report.residual_history,
-            operator.applications)
+            applications)
         return x, report
     elseif backend.name == :iterativesolvers
         isfinite(resource_budget.max_seconds) &&

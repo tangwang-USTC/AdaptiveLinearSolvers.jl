@@ -1,8 +1,8 @@
-# AdaptiveLinearSolvers.jl
+# AdaptiveLinearSolvers
 
 一个面向 Julia 的、以数学资格为边界的自适应线性代数求解路由器。
 
-项目的工作名称为 `AdaptiveLinearSolvers.jl`。在注册 Julia General registry 或创建 GitHub 远程仓库前，名称、UUID、许可证和组织归属仍可调整。
+项目的工作名称为 `AdaptiveLinearSolvers`。在注册 Julia General registry 或创建 GitHub 远程仓库前，名称、UUID、许可证和组织归属仍可调整。
 
 ## 术语与缩略词
 
@@ -69,7 +69,7 @@ benchmarks/          受版本控制的数学基准定义
 在包尚未注册至 Julia General registry 前，不能使用 `Pkg.add("AdaptiveLinearSolvers")`。Julia 包管理器 `Pkg` 应以本地项目方式加载：
 
 ```powershell
-cd E:\juliapackaages\tools\linearsolve
+cd E:\juliapackages\tools\AdaptiveLinearSolvers
 julia --project=.
 ```
 
@@ -83,7 +83,7 @@ using AdaptiveLinearSolvers
 
 ```julia
 import Pkg
-Pkg.develop(path=raw"E:\juliapackaages\tools\linearsolve")
+Pkg.develop(path=raw"E:\juliapackages\tools\AdaptiveLinearSolvers")
 ```
 
 测试应由包管理器运行，而非依赖编辑器的“运行当前文件”按钮：
@@ -94,4 +94,4 @@ julia --project=. -e 'using Pkg; Pkg.test()'
 
 ## License
 
-This project is released under the [MIT License](LICENSE).
+This project is released under the [Apache License 2.0](LICENSE).

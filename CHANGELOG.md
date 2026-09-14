@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### Changed
+
+- 项目名称统一：本地目录 `linearsolve` → `AdaptiveLinearSolvers`、GitHub 仓库 `AdaptiveLinearSolvers.jl` → `AdaptiveLinearSolvers`、文档与天工侧引用同步更新。
+- 许可证切换：MIT → Apache-2.0，以符合 Julia General Registry 注册要求。
+
 ### Added (Phase 0+1)
 
 ### Added (Phase 2)

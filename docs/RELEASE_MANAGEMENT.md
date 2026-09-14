@@ -1,6 +1,6 @@
 # 发布说明管理规则
 
-本规则约束 `AdaptiveLinearSolvers.jl` 的版本说明与 GitHub Release 发布。
+本规则约束 `AdaptiveLinearSolvers` 的版本说明与 GitHub Release 发布。
 
 ## 1. 两层说明
 
@@ -67,6 +67,6 @@ GitHub Release 与 `CHANGELOG.md` 应以相同的事实范围描述版本。简�
 - `Pkg.test()`：N/N 通过，Julia X.Y.Z。
 
 详细的接口、数学边界、测试环境和未覆盖项见：
-[vX.Y.Z 详细发布说明](https://github.com/tangwang-USTC/AdaptiveLinearSolvers.jl/blob/vX.Y.Z/docs/releases/vX.Y.Z.md)
+[vX.Y.Z 详细发布说明](https://github.com/tangwang-USTC/AdaptiveLinearSolvers/blob/vX.Y.Z/docs/releases/vX.Y.Z.md)
 ```
 

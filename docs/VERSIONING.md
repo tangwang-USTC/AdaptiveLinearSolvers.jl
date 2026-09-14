@@ -68,13 +68,13 @@ test(krylov): cover variable-preconditioner fallback
 该仓库作为独立 GitHub 项目管理。远程仅使用 HTTPS：
 
 ```text
-origin  https://github.com/<owner>/AdaptiveLinearSolvers.jl.git
+origin  https://github.com/<owner>/AdaptiveLinearSolvers.git
 ```
 
 首次公开推送前应确认：
 
 - GitHub 所有者或组织。
-- 仓库名称是否采用 `AdaptiveLinearSolvers.jl`。
+- 仓库名称是否采用 `AdaptiveLinearSolvers`（不含 `.jl` 后缀）。
 - 私有或公开可见性。
 - 开源许可证；在未确定前不应声明可再分发。
 - 是否启用 issue、discussions、GitHub Actions 和 GitHub Pages。

@@ -67,7 +67,16 @@ function _krylov_preconditioner_keywords(method::Symbol,
     (preconditioner === nothing || preconditioner.name == :none) && return NamedTuple()
     preconditioner.operator === nothing &&
         throw(ArgumentError("preconditioner $(preconditioner.name) has no inverse-action operator"))
-    return method == :fgmres ? (; N=preconditioner.operator) : (; M=preconditioner.operator)
+    if method == :fgmres
+        return (; N=preconditioner.operator)
+    end
+    # Factorization-based preconditioners (IC, ILU, AMG) represent an approximate
+    # factor A ≈ M, so Krylov should apply M^{-1} via ldiv!.  Jacobi and Identity
+    # operators already encode the INVERSE (mul! directly applies the preconditioner).
+    factorization_based = preconditioner.name in (:ic, :ilu, :amg)
+    return factorization_based ?
+        (; M=preconditioner.operator, ldiv=true) :
+        (; M=preconditioner.operator)
 end
 
 function _iterative_backend_available(problem::AdaptiveLinearProblem)

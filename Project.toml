@@ -4,6 +4,8 @@ version = "0.0.4"
 authors = ["Tiangong"]
 
 [deps]
+AlgebraicMultigrid = "2169fc97-5a83-5252-b627-83903c6c433c"
+IncompleteLU = "40713840-3770-5561-ab4c-a76e7d0d7895"
 IterativeSolvers = "42fd0dbc-a981-5370-80f2-aaf504508153"
 Krylov = "ba0b0d4f-ebba-5204-a429-3ac8c609bfb7"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
@@ -12,6 +14,8 @@ Serialization = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
 [compat]
+AlgebraicMultigrid = "2.0.2"
+IncompleteLU = "0.2.1"
 IterativeSolvers = "0.9.4"
 Krylov = "0.10.9"
 LinearSolve = "3.87.0"

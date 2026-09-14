@@ -7,6 +7,22 @@ using Serialization
 using IterativeSolvers
 import LinearSolve
 
+# Optional external packages for preconditioner builders
+const _HAS_INCOMPLETE_LU = try
+    @eval using IncompleteLU
+    true
+catch
+    @warn "IncompleteLU.jl not available — ILU preconditioner falls back to ILU(0)"
+    false
+end
+const _HAS_ALGEBRAIC_MULTIGRID = try
+    @eval using AlgebraicMultigrid
+    true
+catch
+    @warn "AlgebraicMultigrid.jl not available — AMG preconditioner unavailable"
+    false
+end
+
 include("types.jl")
 include("operators.jl")
 include("policy.jl")

@@ -161,6 +161,9 @@ Base.@kwdef struct PreconditionerBuildPolicy
     kind::Symbol = :jacobi
     diagonal_tolerance::Float64 = sqrt(eps(Float64))
     reuse::Bool = true
+    ilu_droptol::Float64 = 0.01
+    ilu_tau::Float64 = 0.001
+    amg_type::Symbol = :smoothed_aggregation
 end
 
 """Bounded in-memory cache keyed by an explicit matrix version and construction policy."""

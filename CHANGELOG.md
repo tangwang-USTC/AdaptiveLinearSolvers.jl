@@ -13,6 +13,15 @@
 - 为 `CountingOperator` 添加 `adjoint` 支持，使 Krylov.jl 双乘积方法（`A * v` + `A' * u`）可被框架适配。
 - 测试覆盖新增 19 项（Bunch-Kaufman 资格 + 求解验证、LSQR/LSMR 方形与矩形求解、矩形稠密 QR 改进测试），总通过数 178 → 197。
 
+### Added (Phase 3)
+
+- 新增 **IC(0)** 预条件器构建器（`_ic_preconditioner` + `_ic_zero_factor`）：纯 Julia 的不完全 Cholesky 零填充分解，保留 `tril(A)` 稀疏模式；通过 `ICZeroPreconditioner` 封装实现 Krylov.jl 兼容的列向前代/回代；需要稀疏 SPD 矩阵及其合约证明。
+- 新增 **ILU** 预条件器构建器（`_ilu_preconditioner`）：优先使用 IncompleteLU.jl 的阈值分解（`τ` 参数由 `policy.ilu_tau` 控制），回退至 Julia 内置 `lu(A)` 完全 LU；需要稀疏方阵。
+- 新增 **AMG** 预条件器构建器（`_amg_preconditioner`）：通过 AlgebraicMultigrid.jl 提供 `smoothed_aggregation`（默认）与 `ruge_stuben` 两种粗化策略，正确使用 `aspreconditioner()` 包装以接入 Krylov.jl 的 `ldiv!` 协议；SPD 矩阵时注入 Hermitian/PD 证据。
+- 扩展 `PreconditionerBuildPolicy`：增加 `ilu_droptol`、`ilu_tau`、`amg_type` 字段及对应校验。
+- 预条件器缓存键纳入 ILU/AMG 专有参数，确保不同策略间缓存隔离。
+- 测试覆盖新增 33 项（IC(0) 构建与 CG 求解验证、IC(0) 拒绝条件（稠密/无 SPD）、ILU 构建与 GMRES 求解、ILU 拒绝（稠密/非方）、AMG smoothed_aggregation/ruge_stuben 构建与 CG 求解、AMG 稠密拒绝、策略校验 7 项、ICZeroPreconditioner 前代/回代直接验证），总通过数 197 → 230。
+
 ### Fixed (Phase 0+1)
 
 - 新增 `:direct` 路线作为 `A\b` 通配后备直接求解器，在 `_DIRECT_CAPABILITIES`、`_direct_order` 和 `_eligibility` 中注册。
